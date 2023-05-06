@@ -12,5 +12,6 @@ setup(
     description="C-Backed beamforming engines",
     author_email="wew12@duke.edu",
     packages=['pycbf', 'pycbf.trig'],
-    ext_modules=[trig]
+    ext_modules=[trig],
+    version="0.0.0"
 )
