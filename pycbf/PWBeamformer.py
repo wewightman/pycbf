@@ -44,12 +44,16 @@ class PWBeamformer(Beamformer):
         params['alphas'] = alphas
         params['refs'] = refs
         params['trefs'] = putsingles(trefs, ctypes.c_float)
+
+        # variables defining parallelization
         params['parallel'] = parallel
 
         if ncores is None:
             ncores = os.cpu_count()
             if ncores is None: ncores = int(1)
             params['ncores'] = ncores
+
+        params['pool'] = None
 
         logger.info("Copy data into shared buffers")
         # copy large arrays to ctypes
@@ -140,8 +144,9 @@ class PWBeamformer(Beamformer):
 
         # if able to be parallelized do it, else...
         if params['parallel']:
-            with Pool() as p:
-                p.map(self.__gen_tab__, range(params['nacqs']))
+            logger.info("Using parallel processing")
+            p = self.__get_pool__()
+            p.map(self.__gen_tab__, range(params['nacqs']))
         else:
             for inda in range(params['nacqs']):
                 self.__gen_tab__(inda)
@@ -153,8 +158,8 @@ class PWBeamformer(Beamformer):
         # if able to be parallelized do it, else...
         if params['parallel']:
             logger.info("Using parallel processing")
-            with Pool() as p:
-                p.map(self.__gen_mask__, range(params['nacqs']))
+            p = self.__get_pool__()
+            p.map(self.__gen_mask__, range(params['nacqs']))
         else:
             logger.info("Using serial processing")
             for inda in range(params['nacqs']):
@@ -179,6 +184,28 @@ class PWBeamformer(Beamformer):
         for inda in range(nacqs):
             trig.copysubvec(norig, nsub, ctypes.c_int(inda), data, datas[inda])
 
+    def __get_pool__(self):
+        """Should be called whenever the pool is accessed. Returns current active pool object
+        
+        this function checks the current status of the `pool` variable in this beamformer's 
+        dictionary. If active, returns current pool. If not currently active, creates a pool object.
+        """
+        params = __BMFRM_PARAMS__[self.id]
+        if params['pool'] is None:
+            params['pool'] = Pool()
+        
+        return params['pool']
+    
+    def __free_pool__(self):
+        """Kills the stored pool object"""
+        params = __BMFRM_PARAMS__[self.id]
+        if params['pool'] is not None:
+            params['pool'].close()
+            params['pool'].terminate()
+            del params['pool']
+
+        params['pool'] = None
+
     def __call__(self, data):
         params = __BMFRM_PARAMS__[self.id]
         nacqs = params['nacqs']
@@ -190,9 +217,9 @@ class PWBeamformer(Beamformer):
 
         # send data collection to parallelization pool (eg delay)
         if params['parallel']:
-            logger.info("Starting pool...")
-            with Pool() as p:
-                p.map(self.__get_data__, range(nacqs))
+            logger.info("Using parallel processing")
+            p = self.__get_pool__()
+            p.map(self.__get_data__, range(nacqs))
         else:
             logger.info("Non-parallell beamforming")
             for inda in range(nacqs):
@@ -208,4 +235,9 @@ class PWBeamformer(Beamformer):
         
         logger.info("Converting to output array")
         return np.array([output[ind] for ind in range(npoints)])
+    
+    def free(self):
+        self.__free_pool__()
+        Beamformer.free(self)
+
         
