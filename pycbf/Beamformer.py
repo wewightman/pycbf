@@ -1,32 +1,18 @@
-from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from numpy import ndarray
 import logging
 logger = logging.getLogger(__name__)
 
-global __BMFRM_DEBUG__
-__BMFRM_DEBUG__ = False
+class BeamformerException(Exception): pass
 
-global __BMFRM_PARAMS__
-__BMFRM_PARAMS__ = dict()
+@dataclass(kw_only=True)
+class Beamformer():
+    tautx  : ndarray
+    taurx  : ndarray
+    apodtx : ndarray
+    apodrx : ndarray
 
-class Beamformer(ABC):
-    __bmfrm_id_counter__ = int(0)
-
-    def __init__(self):
-        self.id = int(Beamformer.__bmfrm_id_counter__)
-        logger.info(f"Generated beamformer with ID: {self.id}")
-        __BMFRM_PARAMS__[self.id] = dict()
-        Beamformer.__bmfrm_id_counter__ += int(1)
-
-    @abstractmethod
-    def __init_tabs__(self):
-        """Generate the delay tabs"""
-        pass
-
-    @abstractmethod
-    def __init_masks__(self):
-        """Generate the delay tabs"""
-        pass
-
-    def free(self):
-        logger.info("Freeing shared memory resources...")
-        del __BMFRM_PARAMS__[self.id]
+    def __post_init__(self):
+        if self.tautx.shape[0] != self.apodtx.shape[0]:
+            raise BeamformerException(f"tautx and apodtx must have the same shape in dim 0 but were {self.tautx.shape[0]} and {self.apodtx.shape[0]}")
+        self.ntx = self.tautx.shape[0]
