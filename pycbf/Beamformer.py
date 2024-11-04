@@ -52,3 +52,5 @@ class Beamformer():
 
         self.id = Beamformer.nbf
         Beamformer.nbf += 1
+
+        __BMFRM_PARAMS__[self.id] = {}
