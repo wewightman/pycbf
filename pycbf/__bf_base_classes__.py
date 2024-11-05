@@ -10,16 +10,14 @@ __BMFRM_PARAMS__ = {}
 class BeamformerException(Exception): pass
 
 @dataclass(kw_only=True)
-class Beamformer():    
-    tautx  : ndarray
-    taurx  : ndarray
-    apodtx : ndarray
-    apodrx : ndarray
+class Tabbed():    
+    tautx  : ndarray = field(init=True)
+    taurx  : ndarray = field(init=True)
+    apodtx : ndarray = field(init=True)
+    apodrx : ndarray = field(init=True)
     ntx : int = field(init=False)
     nrx : int = field(init=False)
     nop : int = field(init=False)
-
-    nbf : ClassVar[int] = 0
 
     def __post_init__(self):
         from numpy import ndim
@@ -50,7 +48,13 @@ class Beamformer():
         self.nrx = nrx
         self.nop = nop
 
-        self.id = Beamformer.nbf
-        Beamformer.nbf += 1
+@dataclass(kw_only=True)
+class Parallelized():
+    nbf : ClassVar[int] = 0
+    id  : int = field(init=False)
+
+    def __post_init__(self):
+        self.id = Parallelized.nbf
+        Parallelized.nbf += 1
 
         __BMFRM_PARAMS__[self.id] = {}

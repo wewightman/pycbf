@@ -34,6 +34,7 @@ __cpu_pycbf__.beamform.argtypes = (
     ct.c_int, 
     ct.POINTER(ct.c_float), 
     ct.c_int, 
+    ct.c_float,
     ct.POINTER(ct.c_float), 
     ct.POINTER(ct.c_float), 
     ct.POINTER(ct.c_float), 
@@ -41,4 +42,4 @@ __cpu_pycbf__.beamform.argtypes = (
     ct.POINTER(ct.c_float)
 )
 __cpu_pycbf__.beamform.restype = (None)
-__cpu_pycbf__.beamform.__doc__ = """beamform the device"""
+__cpu_pycbf__.beamform.__doc__ = """beamform an aline's worth of data"""

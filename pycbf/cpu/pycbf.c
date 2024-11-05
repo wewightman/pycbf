@@ -220,6 +220,55 @@ float * cubic1D_fixed(float * xin, int Nin, IntrpData1D_Fixed * knots)
     return y;
 }
 
+/**
+ * cubic1D_fixed: 1D cubic interpolator for a fixed sampling scheme
+ * Based on the cubic interpolation algorithm from Numerical Recipes
+ * Comments are to the writer's knowledge
+ * Wren Wightman, wewightman@github.com, wew@gitlab.oit.duke.edu/, 2023
+ * 
+ * Parameters:
+ *  xin:    pointer to vector of intperpolation coordinates
+ *  knots:  knot structure with interpolation parameters
+*/
+float cubic1D_fixed_point(float xin, IntrpData1D_Fixed * knots) 
+{
+    // loop variables and return buffer
+    float x, a, b, c, d, xlead, xlag;
+    int j;
+
+    // procedurally define bounds
+    float dx = knots->dx;
+    float xmin = knots->xstart;
+    float xmax = xmin + dx * (float)((knots->N) - 1);
+
+
+    x = xin;                    // extract interpolation point
+    j = (int) ((x-xmin)/dx);    // calculate knot index
+
+    // if out of bounds, return fill vlaue
+    if ((x < xmin) || (x > xmax))
+    {
+        return knots->fill;
+    }
+
+    // interpolate in bounds
+    else
+    {
+        // extract x value
+        xlead = xmin + dx * (int)(j+1); // calculate high x
+        xlag = xmin + dx * (int)(j);    // calculate low x
+
+        // generate interpolation terms
+        a = (xlead - x) / dx;
+        b = (x - xlag) / dx;
+        c = (1.0f/6.0f) * (powf(a, 3.0f) - a) * powf(dx, 2.0f);
+        d = (1.0f/6.0f) * (powf(b, 3.0f) - b) * powf(dx, 2.0f);
+
+        // calculate y value
+        return a*(knots->y)[j] + b*knots->y[j+1] + c*knots->y2[j] + d*knots->y2[j+1];
+    }
+}
+
 
 /**
  * tie_knots1D_fixed: Generate second-derivative knots for a fixed sampling scheme
@@ -298,6 +347,7 @@ void beamform(
     int nt,
     float * sig,
     int nout,
+    float thresh,
     float * tautx,
     float * apodtx,
     float * taurx,
@@ -308,20 +358,15 @@ void beamform(
     // make the interpolator for the input signal
     IntrpData1D_Fixed * knots = tie_knots1D_fixed(sig, nt, dt, t0, 0.0f, 1);
 
-    // sum the delay tabs
-    float * tau = (float *) malloc(sizeof(float) * nout);
-    sumvecs(nout, tautx, taurx, 0.0f, tau);
-
-    // delay data to output points
-    float * delayed = cubic1D_fixed(tau, nout, knots);
-
-    // free datastructures when they are done
-    free(tau);
-    free_IntrpData1D_Fixed(knots);
-
     // apply apodization and sum with current output vector
+    float apod;
     for(int i=0; i<nout; ++i) 
     {
-        out[i] += delayed[i] * apodtx[i] * apodrx[i];
+        apod = apodtx[i] * apodrx[i];
+        if (fabs(apod) >= thresh) 
+        {
+            out[i] += apod * cubic1D_fixed_point(tautx[i] + taurx[i], knots);
+        }
     }
+    free_IntrpData1D_Fixed(knots);
 }
