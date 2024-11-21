@@ -47,7 +47,7 @@ class CPUBeamformer(Tabbed, Parallelized):
         # build the buffer for input RF data
         params['psig'] = RawArray(c_type, self.nt * self.ntx * self.nrx)
 
-        self.pool = None
+        self.__start_pool__()
 
     @staticmethod
     def __offset_pnt__(pnt, offset:int):
@@ -109,8 +109,6 @@ class CPUBeamformer(Tabbed, Parallelized):
         """Make the multiprocessing pool"""
         from multiprocessing import Pool, Manager
 
-        if (self.pool is not None): self.pool.close()
-
         # use a process-shared queue to link workers with a persistent buffer
         manager = Manager()
         idQueue = manager.Queue()
@@ -122,9 +120,6 @@ class CPUBeamformer(Tabbed, Parallelized):
             initializer=self.__mp_init_workers__,
             initargs=(self.id, idQueue,)
         )
-
-    def __kill_pool__(self):
-        if hasattr(self, "pool"): self.pool.terminate()
 
     def __zero_buffers__(self):
         from ctypes import memset, sizeof
@@ -147,7 +142,6 @@ class CPUBeamformer(Tabbed, Parallelized):
         self.__zero_buffers__()
 
         # delay and apodize
-        self.__start_pool__()
         self.pool.starmap(CPUBeamformer.__beamform_single__, product([self.id], range(self.ntx), range(self.nrx)))
 
         temp = array([params['results'][id][:self.nop] for id in range(self.nwrkr)])
@@ -155,4 +149,4 @@ class CPUBeamformer(Tabbed, Parallelized):
         return sum(temp, axis=0)
 
     def __del__(self):
-        self.__kill_pool__()
+        del __BMFRM_PARAMS__[self.id]
