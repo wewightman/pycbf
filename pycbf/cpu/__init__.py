@@ -28,7 +28,7 @@ else:
 # load the c library
 __cpu_pycbf__ = ct.CDLL(name)
 
-__cpu_pycbf__.beamform.argtypes = (
+__cpu_pycbf__.beamform_cubic.argtypes = (
     ct.c_float, 
     ct.c_float, 
     ct.c_int, 
@@ -41,5 +41,22 @@ __cpu_pycbf__.beamform.argtypes = (
     ct.POINTER(ct.c_float), 
     ct.POINTER(ct.c_float)
 )
-__cpu_pycbf__.beamform.restype = (None)
-__cpu_pycbf__.beamform.__doc__ = """beamform an aline's worth of data"""
+__cpu_pycbf__.beamform_cubic.restype = (None)
+__cpu_pycbf__.beamform_cubic.__doc__ = """beamform an aline's worth of data using cubic interpolation for each pixel"""
+
+__cpu_pycbf__.beamform_nearest.argtypes = (
+    ct.c_float, 
+    ct.c_float, 
+    ct.c_int, 
+    ct.POINTER(ct.c_float), 
+    ct.c_int, 
+    ct.c_float,
+    ct.POINTER(ct.c_float), 
+    ct.POINTER(ct.c_float), 
+    ct.POINTER(ct.c_float), 
+    ct.POINTER(ct.c_float), 
+    ct.POINTER(ct.c_float),
+    ct.c_int
+)
+__cpu_pycbf__.beamform_nearest.restype = (None)
+__cpu_pycbf__.beamform_nearest.__doc__ = """beamform an aline's worth of data using nearest neighbor interpolation for each pixel with optional upsampling"""
