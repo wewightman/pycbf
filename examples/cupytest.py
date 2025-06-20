@@ -16,7 +16,6 @@ nxout = scale*16+scale*2*16+1
 yin = cp.array(np.sin(2*np.pi*np.arange(nxin)/4), dtype=np.float32)
 yin[:8] = 0
 yin[-8:] = 0
-print()
 
 xout = cp.linspace(-8, 16+16+8, nxout, dtype=np.float32)
 yout_lin = cp.zeros(nxout, dtype=np.float32)
@@ -33,11 +32,17 @@ inputs = (
 
 linterp_kernel((32,), (32,), inputs)
 
+xInfo = np.dtype([('x0', np.float32),('dx', np.float32),('nx', np.int32)])
+xinfo = np.zeros(1, dtype=xInfo)#.view(xInfo)
+print(xinfo)
+xinfo['x0'] = 0
+xinfo['dx'] = 1
+xinfo['nx'] = nxin
+print(xinfo)
+
 yout_cube = cp.zeros(nxout, dtype=np.float32)
 inputs = (
-    np.float32(0),
-    np.float32(1),
-    np.int32(nxin),
+    xinfo,
     yin,
     xout,
     np.int32(nxout),
@@ -49,8 +54,6 @@ cubic_interp((64,), (64,), inputs)
 
 fint = Akima1DInterpolator(np.arange(nxin), yin.get(), method='makima')
 yout_scipy = fint(xout.get())
-
-print(yin, yout_lin, yout_cube)
 
 plt.figure()
 plt.scatter(np.arange(nxin), yin.get(), label='Original', lw=1, color='black')
@@ -72,3 +75,5 @@ ax = axes[1]
 ax.plot(xout.get(), yout_cube.get() - yout_scipy, label='Custom - Scipy', lw=1)
 ax.legend()
 plt.savefig("test_interp_scipy.pdf")
+
+RFInfo = np.dtype([('ntx', np.int32),('nrx', np.int32),('np', np.int32),('ndim', np.int32),('tInfo', xInfo)])
