@@ -20,28 +20,26 @@ rfinfo['tInfo']['x0'] = 0.0
 rfinfo['tInfo']['dx'] = 1E-6
 rfinfo['tInfo']['nx'] = 1024
 
-als = np.radians(20)
+als = np.radians(0)
 c0 = 1540
 
-xout = 1E-3*np.linspace(-20, 20, 201)
-zout = 1E-3*np.linspace(1, 41, 201)
+xout = 1E-3*np.linspace(-40, 40, 401)
+zout = 1E-3*np.linspace(1, 81, 401)
 Px, Pz = np.meshgrid(xout, zout, indexing='ij')
 pvec = cp.ascontiguousarray(cp.array([Px, Pz]).transpose(2, 1, 0), dtype=np.float32)
 pout = cp.zeros(pvec.shape[:-1], dtype=np.float32)
 
-print(pout.shape, pvec.shape)
-
 params = (
     rfinfo,
     cp.zeros((1, 1, 1024), dtype=np.float32),
-    cp.array([-5E-3, 30E-3], dtype=np.float32),
+    cp.array([-5E-3, -40E-3], dtype=np.float32),
     cp.array([np.sin(als), np.cos(als)], dtype=np.float32),
     cp.array([35E-3/c0], dtype=np.float32),
-    cp.array([np.radians(45)], dtype=np.float32),
-    cp.array([5E-3], dtype=np.float32),
+    cp.array([np.radians(10)], dtype=np.float32),
+    cp.array([1E-3], dtype=np.float32),
     cp.array([-10E-3, 0], dtype=np.float32),
     cp.array([0, 1], dtype=np.float32),
-    cp.array([np.radians(30)], dtype=np.float32),
+    cp.array([np.radians(45)], dtype=np.float32),
     np.float32(c0),
     np.int32(pout.size),
     pvec,
@@ -49,8 +47,6 @@ params = (
 )
 
 das_bmode_cubic((64,64,64), (1024,1,1), params)
-
-print(pout)
 
 plt.figure()
 plt.imshow(pout.get())
