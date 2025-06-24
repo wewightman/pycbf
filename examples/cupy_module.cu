@@ -173,15 +173,15 @@ extern "C" {
         // if synthetic focal point (diverging or converging waves)
         if (0.0 != ala)
         {
-            if ((0.0 != dof) && (abs(dxproj) <= dof/2)) {
+            if ((0.0 != dof) && (abs(dxproj) < dof/2)) {
                 *tau = 2.0*(dxproj/dof)*(dxmag/c0) + t0;
-                if (sqrt(dxmag*dxmag - dxproj*dxproj) <= dof * sin(ala)) *apod = 1.0;
+                if (sqrt(abs(dxmag*dxmag - dxproj*dxproj)) <= dof * sin(ala) / 2.0) *apod = 1.0;
                 else *apod = 0.0;
             }
             else {
                 *tau = (dxproj/abs(dxproj)) * (dxmag/c0) + t0;
-                if ((dxmag != 0.0) && (acos(abs(dxproj/dxmag)) > ala)) *apod = 1.0;
-                else *apod = 0.0;
+                if ((dxmag != 0.0) && (acos(abs(dxproj/dxmag)) > ala)) *apod = 0.0;
+                else *apod = 1.0;
             }
         }
 
@@ -190,6 +190,34 @@ extern "C" {
             *tau = dxproj/c0;
             *apod = 1.0;
         }
+    }
+
+    void calc_taurx_apodrx(
+        const int    ndim,  // 2 or 3 dimensions
+        const float* orig,  // origin of receive element
+        const float* nvec,  // normal vector of wave propagation
+        const float    c0,  // assumed speed of sound in media
+        const float   ala,  // the acceptance angle relative to nvec - zero for plane wave
+        const float* pvec,  // the point at which we are calculating delay tabs and apodization
+        float* tau, float* apod // output numbers
+    )
+    {
+        // calculate the magnitude of dx and its projection onto nvec
+        float dxi, dxmag, dxproj;
+        dxmag  = 0.0;
+        dxproj = 0.0;
+        for (int idim = 0; idim < ndim; ++idim)
+        {
+            dxi = pvec[idim] - orig[idim];
+            dxmag  += dxi * dxi;
+            dxproj += dxi * nvec[idim];
+        }
+        dxmag = sqrt(dxmag);
+
+        // calculate receive delay tabs and apodization
+        *tau = dxmag/c0;
+        if ((dxmag != 0.0) && (acos(abs(dxproj/dxmag)) > ala)) *apod = 0.0;
+        else *apod = 1.0;
     }
 
 
@@ -253,6 +281,16 @@ extern "C" {
             &tautx, &apodtx
         );
 
-        pout[ip] = tautx * apodtx;
+        calc_taurx_apodrx(
+            rfinfo.ndim, 
+            &ovecrx[irx*rfinfo.ndim], 
+            &nvecrx[irx*rfinfo.ndim], 
+            c0,
+            alarx[irx], 
+            &pvec[ip*rfinfo.ndim],
+            &taurx, &apodrx
+        );
+
+        pout[ip] = (tautx +taurx) * apodtx * apodrx;
     }
 }
