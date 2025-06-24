@@ -76,4 +76,5 @@ ax.plot(xout.get(), yout_cube.get() - yout_scipy, label='Custom - Scipy', lw=1)
 ax.legend()
 plt.savefig("test_interp_scipy.pdf")
 
-RFInfo = np.dtype([('ntx', np.int32),('nrx', np.int32),('np', np.int32),('ndim', np.int32),('tInfo', xInfo)])
+RFInfo = np.dtype([('ntx', np.int32),('nrx', np.int32),('ndim', np.int32),('tInfo', xInfo)])
+
