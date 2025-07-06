@@ -2,6 +2,7 @@ import cupy as cp
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.interpolate import Akima1DInterpolator
+from scipy.signal.windows import tukey
 from scipy.signal import hilbert
 
 from time import time
@@ -49,7 +50,7 @@ print(t0tx.dtype)
 
 ovecrx = cp.ascontiguousarray(cp.array([xele, np.zeros(len(xele))]).T, dtype=np.float32)
 nvecrx = cp.ascontiguousarray(cp.array([np.zeros(len(xele)), np.ones(len(xele))]).T, dtype=np.float32)
-alarx = np.radians(30) * cp.ones(len(xele), dtype=np.float32)
+alarx = np.arctan2(1,2) * cp.ones(len(xele), dtype=np.float32)
 
 rfinfo = np.zeros(1, dtype=RFInfo)
 rfinfo['ntx'] = len(steers)
@@ -68,50 +69,62 @@ pvec = cp.ascontiguousarray(cp.array([Px, Pz]).transpose(2, 1, 0), dtype=np.floa
 print(rf.shape)
 # exit()
 
-allout = np.zeros((rf.shape[0], rf.shape[2], len(zout), len(xout)))
+irot = 13+18
 
 print("Starting beamforming")
 tstart = time()
-for ibatch in range(1):
-    print("Copying data to GPU")
-    t0copy = time()
-    allrf = cp.ascontiguousarray(cp.array(rf[ibatch*6:(ibatch+1)*6,:,:,:,:]).transpose(0, 2, 3, 1, 4), dtype=np.float32)
-    t1copy = time()
-    print(f"  Copy time: {(t1copy-t0copy)*1E3} ms")
-    pout = cp.zeros((6, rf.shape[2], len(zout), len(xout)), dtype=np.float32)
-    for drot in range(1):
-        irot = ibatch * 6 + drot
-        t0rot = time()
-        for iim in range(rf.shape[2]):
-            params = (
-                rfinfo,
-                allrf[drot, iim],
-                ovectx,
-                nvectx,
-                t0tx,
-                alatx,
-                dof,
-                ovecrx,
-                nvecrx,
-                alarx,
-                np.float32(c0),
-                np.int32(pout[0,0].size),
-                pvec,
-                pout[drot,iim]
-            )
-        
-            das_bmode_cubic((128,128,128), (1024,1,1), params)
-            t1rot = time()
-        print("  ", irot, " ", (t1rot - t0rot)*1E3, " ms")
-    t0trans = time()
-    allout[ibatch*6:(ibatch+1)*6,:,:,:] = cp.asnumpy(pout)
-    t1trans = time()
-    print("  tansfer out: ", (t1trans-t0trans)*1E3, " ms")
-    del pout, allrf
+
+t0copy = time()
+allrf = cp.ascontiguousarray(cp.array(rf[irot,:,:,:,:]).transpose(1, 2, 0, 3), dtype=np.float32)
+t1copy = time()
+print(f"  Copy time: {(t1copy-t0copy)*1E3} ms")
+pout = cp.zeros((rf.shape[2], rf.shape[3], len(zout), len(xout)), dtype=np.float32)
+
+t0rot = time()
+for iim in range(rf.shape[2]):
+    for istr in range(3):
+        params = (
+            rfinfo,
+            allrf[iim, istr:istr+1],
+            ovectx[istr:istr+1],
+            nvectx[istr:istr+1],
+            t0tx[istr:istr+1],
+            alatx[istr:istr+1],
+            dof[istr:istr+1],
+            ovecrx,
+            nvecrx,
+            alarx,
+            np.float32(c0),
+            np.int32(pout[0,0].size),
+            pvec,
+            pout[iim,istr]
+        )
+
+        das_bmode_cubic((128,128,128), (256,1,1), params)
+t1rot = time()
+
+print("  ", irot, " ", (t1rot - t0rot)*1E3, " ms")
+
+# print("Demodulating")
+# t0demod = time()
+# half = fft.rfft(pout, axis=2)
+# half *= cp.array(tukey(half.shape[2], alpha=0.2))[None,None,:,None]
+# demod = fft.ifft(half, axis=2)
+# t1demod = time()
+# print("  Demodulation time: ", (t1demod-t0demod)*1E3, " ms")
+
+t0trans = time()
+allout = cp.asnumpy(pout)
+allout = hilbert(allout, axis=2)
+t1trans = time()
+print("  tansfer out: ", (t1trans-t0trans)*1E3, " ms")
+del pout, allrf#, demod
+
 tstop = time()
+
 print(f"Done beamforming, {1E3*(tstop-tstart)} ms")
 
-putdictasHDF5("output.h5", {"bmodes":allout[0], "lat":xout, "axial":zout})
+putdictasHDF5("output.h5", {"bmodes":allout, "lat":xout, "axial":zout})
 
 # env = np.abs(hilbert(pout.get(), axis=1))
 
