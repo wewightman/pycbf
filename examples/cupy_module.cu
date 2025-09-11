@@ -255,7 +255,7 @@ extern "C" {
     )
     {
         int tpb, bpg, tid, itx, irx, ip;
-        float tautx, apodtx, taurx, apodrx;
+        float tautx, apodtx, taurx, apodrx, temp;
 
         // get cuda step sizes
         tpb = blockDim.x * blockDim.y * blockDim.z; // threads per block
@@ -292,12 +292,18 @@ extern "C" {
             &taurx, &apodrx
         );
 
-        if (0 == apodtx * apodrx) pout[ip] += 0.0;
-        else pout[ip] += apodtx * apodrx * cube_interp(rfinfo.tInfo.x0, rfinfo.tInfo.dx, rfinfo.tInfo.nx, &rfdata[itx*rfinfo.nrx*rfinfo.tInfo.nx + irx*rfinfo.tInfo.nx], tautx + taurx, 0.0);
+        // If valid, add the beamformed and apodized value
+        if (0 != apodtx * apodrx)
+        {
+            atomicAdd(
+                &pout[ip], 
+                apodtx * apodrx * cube_interp(rfinfo.tInfo.x0, rfinfo.tInfo.dx, rfinfo.tInfo.nx, &rfdata[itx*rfinfo.nrx*rfinfo.tInfo.nx + irx*rfinfo.tInfo.nx], tautx + taurx, 0.0)
+            );
+        } 
     }
 
     /**
-     * das_bmode_cubic: beamform a DAS bmode 
+     * das_bmode_rxseparate_cubic: beamform a coherence image keeping rx data separate
      * 
      * RF channel data parameters:
      *   rfinfo: information about the rfdata
@@ -366,7 +372,12 @@ extern "C" {
             &taurx, &apodrx
         );
 
-        if (0 == apodtx * apodrx) pout[irx * np + ip] += 0.0;
-        else pout[irx * np + ip] += apodtx * apodrx * cube_interp(rfinfo.tInfo.x0, rfinfo.tInfo.dx, rfinfo.tInfo.nx, &rfdata[itx*rfinfo.nrx*rfinfo.tInfo.nx + irx*rfinfo.tInfo.nx], tautx + taurx, 0.0);
+        if (0 != apodtx * apodrx)
+        {
+            atomicAdd(
+                &pout[irx * np + ip], 
+                apodtx * apodrx * cube_interp(rfinfo.tInfo.x0, rfinfo.tInfo.dx, rfinfo.tInfo.nx, &rfdata[itx*rfinfo.nrx*rfinfo.tInfo.nx + irx*rfinfo.tInfo.nx], tautx + taurx, 0.0)
+            );
+        }
     }
 }
