@@ -17,7 +17,7 @@ das_bmode_cubic = module.get_function("das_bmode_cubic")
 xInfo = np.dtype([('x0', np.float32),('dx', np.float32),('nx', np.int32)])
 RFInfo = np.dtype([('ntx', np.int32),('nrx', np.int32),('ndim', np.int32),('tInfo', xInfo)])
 
-datapath = "/fastrs/ultrasound/TIMuscle/InVivo/20230421_V001/acq_2_flex_45_musc_vl/RawData/"
+datapath = "/fastrs/ultrasound/TIMuscle/InVivo/20230804_P007/acq_00_phantom_pf_30/RawData/"
 
 rf, dims, rfpar = verasonics_loadtrackrf(datapath)
 
@@ -62,11 +62,11 @@ rfinfo['tInfo']['nx'] = len(t)
 
 print(rfinfo)
 
-xout = 1E-3*np.linspace(-22.5, 22.5, 501)
-zout = 1E-3*np.arange(1, 40, 0.15/4)
+xout = 1E-3*np.linspace(-17.5, 17.5, 201)
+zout = 1E-3*np.arange(25, 35, 0.15/4)
 Px, Pz = np.meshgrid(xout, zout, indexing='ij')
 pvec = cp.ascontiguousarray(cp.array([Px, Pz]).transpose(2, 1, 0), dtype=np.float32)
-print(rf.shape)
+print(rf.shape, pvec.shape)
 # exit()
 
 irot = 13+18
@@ -79,6 +79,9 @@ allrf = cp.ascontiguousarray(cp.array(rf[irot,:,:,:,:]).transpose(1, 2, 0, 3), d
 t1copy = time()
 print(f"  Copy time: {(t1copy-t0copy)*1E3} ms")
 pout = cp.zeros((rf.shape[2], rf.shape[3], len(zout), len(xout)), dtype=np.float32)
+
+nthread = 512
+nblock = int(np.ceil(rfinfo['nrx'][0] * len(zout) * len(xout)/nthread))
 
 t0rot = time()
 for iim in range(rf.shape[2]):
@@ -100,31 +103,31 @@ for iim in range(rf.shape[2]):
             pout[iim,istr]
         )
 
-        das_bmode_cubic((128,128,128), (256,1,1), params)
+        das_bmode_cubic((nblock,1,1), (nthread,1,1), params)
 t1rot = time()
 
 print("  ", irot, " ", (t1rot - t0rot)*1E3, " ms")
 
-# print("Demodulating")
-# t0demod = time()
-# half = fft.rfft(pout, axis=2)
-# half *= cp.array(tukey(half.shape[2], alpha=0.2))[None,None,:,None]
-# demod = fft.ifft(half, axis=2)
-# t1demod = time()
-# print("  Demodulation time: ", (t1demod-t0demod)*1E3, " ms")
+print("Demodulating")
+t0demod = time()
+half = cp.fft.rfft(pout, axis=2)
+half *= cp.array(tukey(half.shape[2], alpha=0.2))[None,None,:,None]
+demod = cp.fft.ifft(cp.fft.ifftshift(half, axes=2), axis=2)
+t1demod = time()
+print("  Demodulation time: ", (t1demod-t0demod)*1E3, " ms")
 
 t0trans = time()
 allout = cp.asnumpy(pout)
-allout = hilbert(allout, axis=2)
+demout = cp.asnumpy(demod)
 t1trans = time()
 print("  tansfer out: ", (t1trans-t0trans)*1E3, " ms")
-del pout, allrf#, demod
+del pout, allrf, demod
 
 tstop = time()
 
 print(f"Done beamforming, {1E3*(tstop-tstart)} ms")
 
-putdictasHDF5("output.h5", {"bmodes":allout, "lat":xout, "axial":zout})
+putdictasHDF5("output.h5", {"bmodes":allout, "demod":demout, "lat":xout, "axial":zout})
 
 # env = np.abs(hilbert(pout.get(), axis=1))
 
