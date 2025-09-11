@@ -49,6 +49,61 @@ class Tabbed():
         self.nop = nop
 
 @dataclass(kw_only=True)
+class SynthPointed():    
+    ovectx  : ndarray = field(init=True)    # source point location (ntx by ndim matrix)
+    nvectx  : ndarray = field(init=True)    # normal vector of the source point (ntx by ndim matrix)
+    doftx   : ndarray = field(init=True)    # depth of field over which to use planar delay tabs around ovec (ntx length vector)
+    alatx   : ndarray = field(init=True)    # angular acceptance around nvec (fnumber basically) (ntx length vector)
+    t0tx    : ndarray = field(init=True)    # time the wave front passes through ovectx (ntx length vector)
+
+    ovecrx  : ndarray = field(init=True)    # location of the recieve sensors (nrx by ndim matrix)
+    nvecrx  : ndarray = field(init=True)    # orientation of the recieve sensor (nrx by ndim matrix)
+    alarx   : ndarray = field(init=True)    # acceptance angle of the recieve sensor (nrx length vector)
+
+    pnts    : ndarray = field(init=True)    # number of reconstruction points (nop by ndim matrix)
+
+    ntx     : int = field(init=False)       # number of transmit events
+    nrx     : int = field(init=False)       # number of recieve events
+    nop     : int = field(init=False)       # number of points to recon
+    ndimp   : int = field(init=False)       # number of spatial dimensions to reconstruct over (2 or 3)
+
+    def __post_init__(self):
+        from numpy import ndim
+
+        # check that all vector inputs are 1D
+        all1d = (ndim(self.doftx) == 1) and (ndim(self.alatx) == 1) and (ndim(self.t0tx) == 1) and (ndim(self.alarx) == 1) 
+
+        # check that all matrix inputs are 2D
+        all2d = (ndim(self.ovectx) == 2) and (ndim(self.nvectx) == 2) and (ndim(self.ovecrx) == 2) and (ndim(self.nvecrx) == 2)
+
+        # extract dimensions of tx/rx/output point array
+        ntx     = self.ovectx.shape[0]
+        nrx     = self.ovecrx.shape[0]
+        nop     = self.pnts.shape[0]
+        ndimp   = self.pnts.shape[1]
+
+        # ensure dimensions are consistent
+        alltxdim = (self.nvectx.shape[0] == ntx) and (self.doftx.shape[0] == ntx) and (self.alatx.shape[0] == ntx) and (self.t0tx.shape[0] == ntx)
+        allrxdim = (self.nvecrx.shape[0] == nrx) and (self.alarx.shape[0] == nrx)
+        allndimp = (self.ovectx.shape[1] == ndimp) and (self.nvectx.shape[1] == ndimp) and (self.ovecrx.shape[1] == ndimp) and (self.nvecrx.shape[1] == ndimp)
+
+        if not all1d:
+            raise BeamformerException(f"all acceptance angle, depth of field, and t0 vectors must be 1D")
+        if not all2d:
+            raise BeamformerException(f"all origin and normal vector matrices must be 2D")
+        if not alltxdim:
+            raise BeamformerException(f"All tx variables must have the same shape in the first dimension")
+        if not allrxdim:
+            raise BeamformerException(f"All rx variables must have the same shame in the first variable")
+        if not allndimp:
+            raise BeamformerException(f"All matrix variables must have the same number of dimensions")
+        
+        self.ntx    = ntx
+        self.nrx    = nrx
+        self.nop    = nop
+        self.ndimp  = ndimp
+
+@dataclass(kw_only=True)
 class Parallelized():
     nbf : ClassVar[int] = 0
     id  : int = field(init=False)
