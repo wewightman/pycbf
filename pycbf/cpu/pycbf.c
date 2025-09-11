@@ -341,7 +341,7 @@ void free_IntrpData1D_Fixed(IntrpData1D_Fixed * knots)
     free(knots);
 }
 
-void beamform(
+void beamform_cubic(
     float t0,
     float dt,
     int nt,
@@ -369,4 +369,68 @@ void beamform(
         }
     }
     free_IntrpData1D_Fixed(knots);
+}
+
+void beamform_nearest(
+    float t0,
+    float dt,
+    int nt,
+    float * sig,
+    int nout,
+    float thresh,
+    float * tautx,
+    float * apodtx,
+    float * taurx,
+    float * apodrx,
+    float * out,
+    int usf
+) 
+{
+    // upsample the signal if usf is larger than 1
+    float * sig_usf;
+    int nt_usf;
+    float dt_usf;
+    if (usf == 1)
+    {
+        sig_usf = sig;
+        nt_usf  = nt;
+        dt_usf  = dt;
+    }
+    else
+    {
+        // figure out upsampled dimensions and spacing
+        nt_usf = usf * (nt-1) + 1;
+        dt_usf = dt / ((float) usf);
+
+        // make the time vector to interpolate along
+        float * tin_usf = (float *) malloc(nt_usf * sizeof(float));
+        for (int it=0; it<nt_usf; ++it) tin_usf[it] = t0 + it*dt_usf;
+
+        // make the interpolator for the input signal
+        IntrpData1D_Fixed * knots = tie_knots1D_fixed(sig, nt, dt, t0, 0.0f, 1);
+
+        // upsample the signal
+        sig_usf = cubic1D_fixed(tin_usf, nt_usf, knots);
+
+        // free the vector
+        free_IntrpData1D_Fixed(knots);
+        free(tin_usf);
+    }
+
+    // apply apodization and sum with current output vector
+    float apod;
+    int it;
+    for(int i=0; i<nout; ++i) 
+    {
+        // calculate apodization
+        apod = apodtx[i] * apodrx[i];
+
+        // calculate time index 
+        it = (int) ((tautx[i] + taurx[i] - t0)/dt_usf + 0.5);
+
+        // run nearest neighbor interpolation
+        if ((fabs(apod) >= thresh) && ((it >= 0) && (it < nt_usf))) out[i] += apod * sig_usf[it];
+    }
+
+    if (usf != 1) free(sig_usf);
 }
