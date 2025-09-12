@@ -86,7 +86,11 @@ for istr in range(3):
 t0rot = time()
 for iim in range(rf.shape[2]):
     for istr in range(3):
-        pout[iim,istr] = bmfrms[istr](allrf[iim, istr:istr+1], out_as_numpy=False).reshape(Px.shape[1], Px.shape[0])
+        bmfrms[istr](
+            allrf[iim, istr:istr+1], 
+            out_as_numpy=False, 
+            buffer = pout[iim,istr].flatten()
+        )
 t1rot = time()
 
 print("  ", irot, " ", (t1rot - t0rot)*1E3, " ms")
