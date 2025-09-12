@@ -71,8 +71,8 @@ class GPUBeamformer(SynthPointed, Parallelized):
             if not txrxt.flags['C_CONTIGUOUS']:
                 txrxt = cp.ascontiguousarray(txrxt, dtype=np.float32)
 
-        if buffer is None: pout = cp.zeros(self.nop)
-        else: pout = buffer
+        if buffer is None: pout = cp.zeros(self.nop, dtype=np.float32)
+        else: raise Exception("Something is wrong with input buffers") #pout = buffer
 
         bf_params = __BMFRM_PARAMS__[self.id]
         routine_params = (
