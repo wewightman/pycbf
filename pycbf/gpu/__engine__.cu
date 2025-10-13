@@ -215,7 +215,7 @@ extern "C" {
 
 
     /**
-     * das_bmode_cubic: beamform a DAS bmode 
+     * das_bmode_cubic_synthetic: beamform a DAS bmode using a synthetic point approach
      * 
      * RF channel data parameters:
      *   rfinfo: information about the rfdata
@@ -239,7 +239,7 @@ extern "C" {
      *   pout: a vector length p for the output bmode
      */
     __global__ 
-    void das_bmode_cubic(
+    void das_bmode_cubic_synthetic(
         const struct RFInfo rfinfo, const float* rfdata, 
         const float* ovectx, const float* nvectx, const float* t0tx, const float* alatx, const float* doftx, 
         const float* ovecrx, const float* nvecrx, const float* alarx,
@@ -299,7 +299,7 @@ extern "C" {
     }
 
     /**
-     * das_bmode_rxseparate_cubic: beamform data keeping RX data separate
+     * das_bmode_rxseparate_cubic_synthetic: beamform data keeping RX data separate using a synthetic point apporach
      * 
      * RF channel data parameters:
      *   rfinfo: information about the rfdata
@@ -323,7 +323,7 @@ extern "C" {
      *   pout: a vector length p x rx for the output bmode
      */
     __global__ 
-    void das_bmode_rxseparate_cubic(
+    void das_bmode_rxseparate_cubic_synthetic(
         const struct RFInfo rfinfo, const float* rfdata, 
         const float* ovectx, const float* nvectx, const float* t0tx, const float* alatx, const float* doftx, 
         const float* ovecrx, const float* nvecrx, const float* alarx,
@@ -406,7 +406,7 @@ extern "C" {
         const struct RFInfo rfinfo, const float* rfdata, 
         const float* tautx, const float* apodtx,
         const float* taurx, const float* apodrx,
-        const int np, const float* pvec, float* pout
+        const int np, float* pout
     )
     {
         int tpb, bpg, tid, itx, irx, ip;
@@ -464,7 +464,7 @@ extern "C" {
         const struct RFInfo rfinfo, const float* rfdata, 
         const float* tautx, const float* apodtx,
         const float* taurx, const float* apodrx,
-        const int np, const float* pvec, float* pout
+        const int np, float* pout
     )
     {
         int tpb, bpg, tid, itx, irx, ip;

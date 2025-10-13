@@ -1,1 +1,1 @@
-from pycbf.cpu.__engine__ import __cpu_pycbf__
+from pycbf.cpu.__core_bf_classes__ import TabbedDAS, TabbedDAS_RxSeparate

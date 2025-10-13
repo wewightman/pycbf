@@ -3,7 +3,7 @@ from pycbf.__bf_base_classes__ import Tabbed, Parallelized, BeamformerException,
 from numpy import ndarray
 
 @dataclass(kw_only=True)
-class CPUBeamformer(Tabbed, Parallelized):
+class TabbedDAS(Tabbed, Parallelized):
     nwrkr : int = 1
     t0 : float = field(init=True)
     dt : float = field(init=True)
@@ -98,7 +98,7 @@ class CPUBeamformer(Tabbed, Parallelized):
     def __beamform_single__(id, itx, irx):
         """Use the identified beamformer to beamform the aline specified by tx and rx indices"""
         from numpy import ravel_multi_index
-        from pycbf.cpu import __cpu_pycbf__
+        from pycbf.cpu.__engine__ import __cpu_pycbf__
         from ctypes import c_float, c_int
 
         params = __BMFRM_PARAMS__[id]
@@ -119,11 +119,11 @@ class CPUBeamformer(Tabbed, Parallelized):
         rxoff = ravel_multi_index((irx,0), (nrx,nop))
         rfoff = ravel_multi_index((itx,irx,0), (ntx,nrx,nt))
 
-        pttx = CPUBeamformer.__offset_pnt__(params['pttx'], txoff)
-        ptrx = CPUBeamformer.__offset_pnt__(params['ptrx'], rxoff)
-        patx = CPUBeamformer.__offset_pnt__(params['patx'], txoff)
-        parx = CPUBeamformer.__offset_pnt__(params['parx'], rxoff)
-        psig = CPUBeamformer.__offset_pnt__(params['psig'], rfoff)
+        pttx = TabbedDAS.__offset_pnt__(params['pttx'], txoff)
+        ptrx = TabbedDAS.__offset_pnt__(params['ptrx'], rxoff)
+        patx = TabbedDAS.__offset_pnt__(params['patx'], txoff)
+        parx = TabbedDAS.__offset_pnt__(params['parx'], rxoff)
+        psig = TabbedDAS.__offset_pnt__(params['psig'], rfoff)
 
         out  = params['results'][iwrkr]
 
@@ -186,10 +186,10 @@ class CPUBeamformer(Tabbed, Parallelized):
         # delay and apodize
         iterator = product([self.id], range(self.ntx), range(self.nrx))
         if self.nwrkr > 1:
-            self.pool.starmap(CPUBeamformer.__beamform_single__, iterator)
+            self.pool.starmap(TabbedDAS.__beamform_single__, iterator)
         else:
             for id, itx, irx in iterator:
-                CPUBeamformer.__beamform_single__(id, itx, irx)
+                TabbedDAS.__beamform_single__(id, itx, irx)
 
 
         temp = array([params['results'][id][:self.nop] for id in range(self.nwrkr)])
@@ -198,3 +198,40 @@ class CPUBeamformer(Tabbed, Parallelized):
 
     def __del__(self):
         del __BMFRM_PARAMS__[self.id]
+
+@dataclass(kw_only=True)
+class TabbedDAS_RxSeparate(TabbedDAS):
+        
+    def __call__(self, txrxt:ndarray):
+        from numpy import array, sum, ascontiguousarray
+        from itertools import product
+        from ctypes import memmove, c_float, POINTER, sizeof
+
+        # ensure input data meets data specs
+        if txrxt.shape != (self.ntx, self.nrx, self.nt):
+            raise BeamformerException(f"Input data must be {self.ntx} by {self.nrx} by {self.nt}")
+        
+        params = __BMFRM_PARAMS__[self.id]
+
+        rf = ascontiguousarray(txrxt, dtype=c_float).ctypes.data_as(POINTER(c_float))
+
+        #for ii, rf in enumerate(txrxt.flatten()): params['psig'][ii] = rf
+        memmove(params['psig'], rf, sizeof(c_float)*txrxt.size)
+
+        # delay, apodize, and sum all transmissions but keep receive elements separate
+        if self.nwrkr > 1:
+            rxtraces = []
+            for irx in range(self.nrx):
+                self.__zero_buffers__()
+                self.pool.starmap(TabbedDAS_RxSeparate.__beamform_single__, product([self.id], range(self.ntx), [irx]))
+                temp = array([params['results'][id][:self.nop] for id in range(self.nwrkr)])
+                rxtraces.append(array(sum(temp, axis=0), copy=True))
+        else:
+            rxtraces = []
+            for irx in range(self.nrx):
+                self.__zero_buffers__()
+                for id, itx in product([self.id], range(self.ntx)):
+                    TabbedDAS_RxSeparate.__beamform_single__(id, itx, irx)
+                rxtraces.append(array(params['results'][0][:self.nop], copy=True))
+
+        return array(rxtraces)
