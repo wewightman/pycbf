@@ -1,6 +1,9 @@
 import cupy as cp
 import numpy as np
+from pycbf.__bf_base_classes__ import BeamformerException
 import os
+
+if not cp.cuda.is_available(): raise BeamformerException("Unable to find a CUDA compatible device")
 
 __eng_dir__ = os.path.join(os.path.dirname(__file__), "__engine__.cu")
 with open(__eng_dir__, mode='r') as fp: raw_module = fp.read()
