@@ -646,6 +646,10 @@ extern "C" {
      *   taurx: the recieve delay tabs - in the shape nrx by np
      *   apodrx: the recieve apodizations - in the shape of nrx by np
      * 
+     * Interpolation parameters:
+     *   k: order of derivative matrix
+     *   S: k by k matrix used to calculate signal derivatives
+     * 
      * Field parameters:
      *   np: the number of recon points
      *   pvec: the location of each recon point
@@ -656,6 +660,7 @@ extern "C" {
         const struct RFInfo rfinfo, const float* rfdata, 
         const float* tautx, const float* apodtx,
         const float* taurx, const float* apodrx,
+        const int k, const float* S,
         const int np, float* pout
     )
     {
@@ -679,12 +684,13 @@ extern "C" {
         if (0 != apodtx[itx*np + ip] * apodrx[irx*np + ip])
         {
             atomicAdd(
-                &pout[irx * np + ip], 
-                apodtx[itx*np + ip] * apodrx[irx*np + ip] * akima_interp(
+                &pout[irx * np + ip],        
+                apodtx[itx*np + ip] * apodrx[irx*np + ip] * korder_cubic_interp(
                     rfinfo.tInfo.x0, rfinfo.tInfo.dx, rfinfo.tInfo.nx, 
                     &rfdata[itx*rfinfo.nrx*rfinfo.tInfo.nx + irx*rfinfo.tInfo.nx], 
+                    S, k,
                     tautx[itx*np + ip] + taurx[irx*np + ip], 0.0
-                )
+                ) 
             );
         } 
     }
