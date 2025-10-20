@@ -228,7 +228,7 @@ class TabbedDAS(Tabbed, Parallelized):
         if buffer is None: pout = cp.zeros(self.nop, dtype=np.float32)
         else: raise Exception("Something is wrong with input buffers") #pout = buffer
 
-        k = 128
+        k = 16
         S = cp.ascontiguousarray(cp.array(__make_S_by_k__(k)), dtype=np.float32)
 
         bf_params = __BMFRM_PARAMS__[self.id]
@@ -284,7 +284,7 @@ class TabbedDAS_RxSeparate(TabbedDAS):
         if buffer is None: pout = cp.zeros(self.nrx*self.nop, dtype=np.float32)
         else: raise Exception("Something is wrong with input buffers") #pout = buffer
 
-        k = 128
+        k = 16
         S = cp.ascontiguousarray(cp.array(__make_S_by_k__(k)), dtype=np.float32)
 
         bf_params = __BMFRM_PARAMS__[self.id]
