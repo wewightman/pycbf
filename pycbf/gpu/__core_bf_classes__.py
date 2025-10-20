@@ -228,6 +228,9 @@ class TabbedDAS(Tabbed, Parallelized):
         if buffer is None: pout = cp.zeros(self.nop, dtype=np.float32)
         else: raise Exception("Something is wrong with input buffers") #pout = buffer
 
+        k = 128
+        S = cp.ascontiguousarray(cp.array(__make_S_by_k__(k)), dtype=np.float32)
+
         bf_params = __BMFRM_PARAMS__[self.id]
         routine_params = (
             bf_params['rfinfo'],
@@ -236,6 +239,7 @@ class TabbedDAS(Tabbed, Parallelized):
             bf_params['apodtx'],
             bf_params['taurx'],
             bf_params['apodrx'],
+            np.int32(k), S,
             np.int32(self.nop),
             pout
         )
@@ -298,3 +302,34 @@ class TabbedDAS_RxSeparate(TabbedDAS):
 
         if out_as_numpy: return cp.asnumpy(pout)
         else: return pout
+
+def __make_S_by_k__(k:int):
+    """Make S matrix for korder cubic interpolation - as described in [1]
+
+    [1] S. K. Præsius and J. Arendt Jensen, “Fast Spline Interpolation using GPU Acceleration,” in 2024 IEEE Ultrasonics, Ferroelectrics, and Frequency Control Joint Symposium (UFFC-JS), Sep. 2024, pp. 1–5. doi: 10.1109/UFFC-JS60046.2024.10793976.
+    """
+    import numpy as np
+    # make C matrix
+    c_00 = np.ones(k)
+    c_00[1:-1] = 4
+    c_p1 = np.ones(k-1)
+    c_p1[0] = 2
+    c_n1 = np.flip(c_p1)
+
+    C  = np.diag(c_00, k= 0)
+    C += np.diag(c_p1, k= 1)
+    C += np.diag(c_n1, k=-1)
+
+    # make P matrix
+    p_p1 = 3*np.ones(k-1)
+    p_p1[0] = 2
+    p_n1 = -np.flip(p_p1)
+
+    P  = np.diag(p_p1, k= 1)
+    P += np.diag(p_n1, k=-1)
+    P[0,0] = -2.5
+    P[-1,-1] = 2.5
+    P[0,2] = 0.5
+    P[-1,-3] = -0.5
+
+    return np.linalg.inv(C) @ P

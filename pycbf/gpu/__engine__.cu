@@ -217,6 +217,77 @@ extern "C" {
     }
 
     /**
+     * korder_cubic_interp: cubic interpolation assuming regular spacing using korder fast cubic spline interpolation, described in this reference.
+     * Requires a precomputed matrix S which calculates the derivatives of the 1D signal using a length k kernel.
+     * k must be an even integer - should be checked before passing.
+     * 
+     * [1] S. K. Præsius and J. Arendt Jensen, “Fast Spline Interpolation using GPU Acceleration,” in 2024 IEEE Ultrasonics, Ferroelectrics, and Frequency Control Joint Symposium (UFFC-JS), Sep. 2024, pp. 1–5. doi: 10.1109/UFFC-JS60046.2024.10793976.
+     */
+    float korder_cubic_interp(
+        const float x0,     // starting position of the regularly spaced coordinate vector
+        const float dx,     // spacing of the coordinate vector
+        const int nx,       // number of points in the coordinate vector
+        const float* y,     // values of of the function sampled on x
+        const float* S,     // a matrix containing values to calcualte the derivatives of y
+        const int k,        // the length of the kernel and size of S is k by k
+        float xout,         // coordintate to interpolate at
+        float fill          // value to fill if out of bounds
+    ) 
+    {
+        float y0, y1, yp0, yp1, xmax, xnorm, a0, a1, a2, a3;
+        int ixin, ik0, iy0, i;
+
+        ixin = (xout - x0)/dx;
+        xmax = x0 + dx * (nx-1);
+
+        // If out of bounds, use the fill value
+        if ((xout < x0) || (ixin >= nx) || (xout > xmax)) return fill;
+
+        // Calculate the starting index for the interpolation kernel
+        if (ixin < k/2)
+        {
+            ik0 = ixin;
+            iy0 = 0;
+        }
+        else if (ixin > nx - k/2 - 1)
+        {
+            ik0 = k - nx + ixin;
+            iy0 = nx - k;
+        }
+        else
+        {
+            ik0 = (k-1)/2;
+            iy0 = ixin - (k-1)/2;
+        }
+
+        // extract bounding y values
+        y0 = y[ixin];
+        y1 = y[ixin+1];
+
+        // calculate the bounding derivatives
+        yp0 = 0.0; 
+        yp1 = 0.0;
+
+        for (i = 0; i < k; ++i)
+        {
+            yp0 += S[ik0 * k     + i] * y[iy0 + i];
+            yp1 += S[ik0 * k + k + i] * y[iy0 + i];
+        }
+
+        // calculate normalized x values
+        xnorm = (xout - x0 - dx * ixin) / dx;
+
+        // calculate the corefficients of the cubic polynomial
+        a0 = y0;
+        a1 = yp0;
+        a2 = 3 * (y1 - y0) - 2 * yp0 - yp1;
+        a3 = 2 * (y0 - y1) +     yp0 + yp1;
+
+        // interpolate the point
+        return a0 + a1 * xnorm + a2 * xnorm * xnorm + a3 * xnorm * xnorm * xnorm;
+    }
+
+    /**
      * xInfo: struct defining the bounds and spacing of a regularly spaced array
      */
     struct xInfo {
@@ -514,6 +585,7 @@ extern "C" {
         const struct RFInfo rfinfo, const float* rfdata, 
         const float* tautx, const float* apodtx,
         const float* taurx, const float* apodrx,
+        const int k, const float* S,
         const int np, float* pout
     )
     {
@@ -533,16 +605,28 @@ extern "C" {
         irx = (tid / np) % rfinfo.nrx;
         ip  = tid % np; 
 
-        // If valid, add the beamformed and apodized value
-        if (0 != apodtx[itx*np + ip] * apodrx[irx*np + ip])
-        {
-            atomicAdd(
-                &pout[ip], 
+        
+        /*
+
                 apodtx[itx*np + ip] * apodrx[irx*np + ip] * akima_interp(
                     rfinfo.tInfo.x0, rfinfo.tInfo.dx, rfinfo.tInfo.nx, 
                     &rfdata[itx*rfinfo.nrx*rfinfo.tInfo.nx + irx*rfinfo.tInfo.nx], 
                     tautx[itx*np + ip] + taurx[irx*np + ip], 0.0
                 )
+        
+        */
+
+        // If valid, add the beamformed and apodized value
+        if (0 != apodtx[itx*np + ip] * apodrx[irx*np + ip])
+        {
+            atomicAdd(
+                &pout[ip],        
+                apodtx[itx*np + ip] * apodrx[irx*np + ip] * korder_cubic_interp(
+                    rfinfo.tInfo.x0, rfinfo.tInfo.dx, rfinfo.tInfo.nx, 
+                    &rfdata[itx*rfinfo.nrx*rfinfo.tInfo.nx + irx*rfinfo.tInfo.nx], 
+                    S, k,
+                    tautx[itx*np + ip] + taurx[irx*np + ip], 0.0
+                ) 
             );
         } 
     }
