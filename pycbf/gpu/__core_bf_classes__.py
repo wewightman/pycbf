@@ -21,10 +21,58 @@ class GPUBeamformer(Beamformer):
         import cupy as cp
         import numpy as np
 
-        if buffer is None: pout = cp.zeros(self.nop, dtype=np.float32)
-        else: raise Exception("Something is wrong with input buffers") #pout = buffer
+        # determine output shape based on summing choice
+        if   self.sumtype ==      'none': shape = (self.ntx, self.nrx, self.nop)
+        elif self.sumtype ==   'tx_only': shape = (          self.nrx, self.nop)
+        elif self.sumtype ==   'rx_only': shape = (self.ntx,           self.nop)
+        elif self.sumtype == 'tx_and_rx': shape =                      self.nop
+        else: raise BeamformerException("Type must be 'none', 'tx_only', 'rx_only', or 'tx_and_rx'")
+
+        if buffer is None: 
+            pout = cp.zeros(shape, dtype=np.float32)
+        else: raise Exception("Something is wrong with input buffers")
 
         return pout
+    
+    def __run_interp_type__(self, txrxt, pout): raise NotImplementedError("You must implement '__run_interp_type__' for class GPUBeamformer")
+    
+    def __call__(self, txrxt : cpNDArray | npNDArray, out_as_numpy : bool = True, buffer : cpNDArray | None = None) -> cpNDArray | npNDArray:
+
+        import cupy as cp
+        import numpy as np
+
+        # format txrxt based on type and shape
+        if isinstance(txrxt, npNDArray):
+            txrxt = cp.ascontiguousarray(cp.array(txrxt), dtype=np.float32)
+            
+        elif isinstance(txrxt, cpNDArray):
+            if (txrxt.dtype != np.float32) or (txrxt.dtype != cp.float32):
+                raise BeamformerException("Cupy array dtype must be either cupy or numpy float 32")
+            
+            if not txrxt.flags['C_CONTIGUOUS']:
+                txrxt = cp.ascontiguousarray(txrxt, dtype=np.float32)
+
+        else:
+            raise BeamformerException("txrxt must be an instance of either a cupy or numpy ndarray but was ", type(txrxt))
+        
+        if txrxt.shape != (self.ntx, self.nrx, self.nt):
+            shapestr = ""
+            for dim in txrxt.shape: shapestr += f"{dim:d}, "
+            shapestr = shapestr[:-2]
+
+            raise BeamformerException(
+                f"'txrxt' must be ({self.ntx}, {self.nrx}, {self.nt}) based on input parameters but was ({shapestr})"
+            )
+
+        # validate that input buffor is correct format or make new one
+        pout = self.__check_or_init_buffer__(buffer)
+        
+        # beamform the data with specified summing
+        self.__run_interp_type__(txrxt, pout)
+
+        # return as numpy or cupy array depending on call specification
+        if out_as_numpy: return cp.asnumpy(pout)
+        else: return pout
 
 @dataclass(kw_only=True)
 class SyntheticBeamformer(Synthetic, GPUBeamformer):
@@ -143,30 +191,6 @@ class SyntheticBeamformer(Synthetic, GPUBeamformer):
 
             gpu_kernel((nblock,1,1), (self.nthread,1,1), routine_params)
 
-    def __call__(self, txrxt : cpNDArray | npNDArray, out_as_numpy : bool = True, buffer : cpNDArray | None = None) -> cpNDArray | npNDArray:
-        """Beamform txrxt tensor """
-        import cupy as cp
-        import numpy as np
-
-        if isinstance(txrxt, npNDArray):
-            txrxt = cp.ascontiguousarray(cp.array(txrxt), dtype=np.float32)
-        elif isinstance(txrxt, cpNDArray):
-            if (txrxt.dtype != np.float32) or (txrxt.dtype != cp.float32):
-                raise BeamformerException("Cupy array dtype must be either cupy or numpy float 32")
-        else:
-            raise BeamformerException("txrxt must be an instance of either a cupy or numpy ndarray but was ", type(txrxt))
-        
-        if isinstance(txrxt, cpNDArray):
-            if not txrxt.flags['C_CONTIGUOUS']:
-                txrxt = cp.ascontiguousarray(txrxt, dtype=np.float32)
-
-        pout = self.__check_or_init_buffer__(buffer)
-        
-        self.__run_interp_type__(txrxt, pout)
-
-        if out_as_numpy: return cp.asnumpy(pout)
-        else: return pout
-
     def __del__(self):
         params = __BMFRM_PARAMS__[self.id]
 
@@ -269,30 +293,6 @@ class TabbedBeamformer(Tabbed,GPUBeamformer):
             nblock = np.int32(np.ceil(self.ntx * self.nrx * self.nop / self.nthread))
 
             gpu_kernel((nblock,1,1), (self.nthread,1,1), routine_params)
-
-    def __call__(self, txrxt : cpNDArray | npNDArray, out_as_numpy : bool = True, buffer : cpNDArray | None = None) -> cpNDArray | npNDArray:
-
-        import cupy as cp
-        import numpy as np
-
-        if isinstance(txrxt, npNDArray):
-            txrxt = cp.ascontiguousarray(cp.array(txrxt), dtype=np.float32)
-        elif isinstance(txrxt, cpNDArray):
-            if (txrxt.dtype != np.float32) or (txrxt.dtype != cp.float32):
-                raise BeamformerException("Cupy array dtype must be either cupy or numpy float 32")
-        else:
-            raise BeamformerException("txrxt must be an instance of either a cupy or numpy ndarray but was ", type(txrxt))
-        
-        if isinstance(txrxt, cpNDArray):
-            if not txrxt.flags['C_CONTIGUOUS']:
-                txrxt = cp.ascontiguousarray(txrxt, dtype=np.float32)
-
-        pout = self.__check_or_init_buffer__(buffer)
-        
-        self.__run_interp_type__(txrxt, pout)
-
-        if out_as_numpy: return cp.asnumpy(pout)
-        else: return pout
 
     def __del__(self):
         params = __BMFRM_PARAMS__[self.id]

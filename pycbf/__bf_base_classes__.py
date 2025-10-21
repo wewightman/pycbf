@@ -10,6 +10,59 @@ __BMFRM_PARAMS__ = {}
 class BeamformerException(Exception): pass
 
 @dataclass(kw_only=True)
+class Beamformer():
+    nbf : ClassVar[int] = 0
+    id  : int = field(init=False)
+    interp : dict = field(default_factory=lambda:{"kind":"cubic"})
+    sumtype : Literal['none', 'tx_only', 'rx_only', 'tx_and_rx'] = 'tx_and_rx'
+
+    ntx: int = field(init=False)
+    nrx: int = field(init=False)
+    nop: int = field(init=False)
+
+    def __post_init__(self):
+        self.id = Beamformer.nbf
+        Beamformer.nbf += 1
+
+        __BMFRM_PARAMS__[self.id] = {}
+
+        self.__check_interp__()
+        self.__check_sumtype__()
+    
+    def __check_sumtype__(self):
+        valid_keys = ['none', 'tx_only', 'rx_only', 'tx_and_rx']
+
+        err_msg = f"sumtype was {self.sumtype} but must be one of the following: "
+
+        for key in valid_keys: err_msg += key + ", "
+        err_msg = err_msg[:-2]
+        
+        if self.sumtype not in valid_keys: raise BeamformerException(err_msg)
+
+    def __check_interp__(self):
+        valid_kinds = ["nearest", "linear", "akima", "makima", "korder_cubic", "cubic"]
+        kind = self.interp.get('kind', None)
+        if (kind is None) or (kind not in valid_kinds): 
+            err_msg = f"interp['kind'] was {kind} but must be one of the following: "
+
+            for key in valid_kinds: err_msg += key + ", " 
+            err_msg = err_msg[:-2]
+
+            raise BeamformerException(err_msg)
+        
+        elif kind == 'korder_cubic':
+            k = self.interp.get("k", None)
+            if k is None: self.interp['k'] = 4
+            if (k < 4) or (k%2 != 0): raise BeamformerException("'k' for interp kind 'korder_cubic' must be at least four and even")
+
+        elif kind == 'cubic': pass
+
+        else:
+            usf = self.interp.get("usf", None)
+            if usf is None: self.interp['usf'] = 1
+            elif (usf < 1): raise BeamformerException(f"'usf' for interp kind '{self.interp['kind']}' must be an interger greater than 1")
+
+@dataclass(kw_only=True)
 class Tabbed():    
     tautx  : ndarray = field(init=True)
     taurx  : ndarray = field(init=True)
@@ -102,52 +155,3 @@ class Synthetic():
         self.nrx    = nrx
         self.nop    = nop
         self.ndimp  = ndimp
-
-@dataclass(kw_only=True)
-class Beamformer():
-    nbf : ClassVar[int] = 0
-    id  : int = field(init=False)
-    interp : dict = field(default_factory=lambda:{"kind":"cubic"})
-    sumtype : Literal['none', 'tx_only', 'rx_only', 'tx_and_rx'] = 'tx_and_rx'
-
-    def __post_init__(self):
-        self.id = Beamformer.nbf
-        Beamformer.nbf += 1
-
-        __BMFRM_PARAMS__[self.id] = {}
-
-        self.__check_interp__()
-        self.__check_sumtype__()
-    
-    def __check_sumtype__(self):
-        valid_keys = ['none', 'tx_only', 'rx_only', 'tx_and_rx']
-
-        err_msg = f"sumtype was {self.sumtype} but must be one of the following: "
-
-        for key in valid_keys: err_msg += key + ", "
-        err_msg = err_msg[:-2]
-        
-        if self.sumtype not in valid_keys: raise BeamformerException(err_msg)
-
-    def __check_interp__(self):
-        valid_kinds = ["nearest", "linear", "akima", "makima", "korder_cubic", "cubic"]
-        kind = self.interp.get('kind', None)
-        if (kind is None) or (kind not in valid_kinds): 
-            err_msg = f"interp['kind'] was {kind} but must be one of the following: "
-
-            for key in valid_kinds: err_msg += key + ", " 
-            err_msg = err_msg[:-2]
-
-            raise BeamformerException(err_msg)
-        
-        elif kind == 'korder_cubic':
-            k = self.interp.get("k", None)
-            if k is None: self.interp['k'] = 4
-            if (k < 4) or (k%2 != 0): raise BeamformerException("'k' for interp kind 'korder_cubic' must be at least four and even")
-
-        elif kind == 'cubic': pass
-
-        else:
-            usf = self.interp.get("usf", None)
-            if usf is None: self.interp['usf'] = 1
-            elif (usf < 1): raise BeamformerException(f"'usf' for interp kind '{self.interp['kind']}' must be an interger greater than 1")
