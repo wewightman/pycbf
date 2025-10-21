@@ -109,64 +109,6 @@ class SyntheticDAS(Synthetic, Parallelized):
 
         del __BMFRM_PARAMS__[self.id]
 
-
-@dataclass(kw_only=True)
-class SyntheticDAS_RxSeparate(SyntheticDAS):
-
-    def __call__(self, txrxt : cpNDArray | npNDArray, out_as_numpy : bool = True, buffer : cpNDArray | None = None) -> cpNDArray | npNDArray:
-        """Beamform txrxt tensor """
-        import cupy as cp
-        import numpy as np
-        from pycbf.gpu.__engine__ import das_bmode_rxseparate_cubic_synthetic as gpu_kernel
-
-        if isinstance(txrxt, npNDArray):
-            txrxt = cp.ascontiguousarray(cp.array(txrxt), dtype=np.float32)
-        elif isinstance(txrxt, cpNDArray):
-            if (txrxt.dtype != np.float32) or (txrxt.dtype != cp.float32):
-                raise BeamformerException("Cupy array dtype must be either cupy or numpy float 32")
-        else:
-            raise BeamformerException("txrxt must be an instance of either a cupy or numpy ndarray but was ", type(txrxt))
-        
-        if isinstance(txrxt, cpNDArray):
-            if not txrxt.flags['C_CONTIGUOUS']:
-                txrxt = cp.ascontiguousarray(txrxt, dtype=np.float32)
-
-        if buffer is None: pout = cp.zeros(self.nop*self.nrx, dtype=np.float32)
-        else: raise Exception("Something is wrong with input buffers") #pout = buffer
-
-        bf_params = __BMFRM_PARAMS__[self.id]
-        routine_params = (
-            bf_params['rfinfo'],
-            txrxt,
-            bf_params['ovectx'],
-            bf_params['nvectx'],
-            bf_params[  't0tx'],
-            bf_params[ 'alatx'],
-            bf_params[ 'doftx'],
-            bf_params['ovecrx'],
-            bf_params['nvecrx'],
-            bf_params[ 'alarx'],
-            np.float32(self.c0),
-            np.int32(self.nop),
-            bf_params[  'pnts'],
-            pout
-        )
-
-        nblock = np.int32(np.ceil(self.ntx * self.nrx * self.nop / self.nthread))
-        gpu_kernel((nblock,1,1), (self.nthread,1,1), routine_params)
-
-        if out_as_numpy: return cp.asnumpy(pout)
-        else: return pout
-
-    def __del__(self):
-        params = __BMFRM_PARAMS__[self.id]
-
-        # delete globally stored data if it exists
-        for key in ['ovectx', 'nvectx', 'doftx', 'alatx', 't0tx', 'ovecrx', 'nvecrx', 'alarx', 'pnts']:
-            if key in params.keys(): del params[key]
-
-        del __BMFRM_PARAMS__[self.id]
-
 @dataclass(kw_only=True)
 class TabbedDAS(Tabbed, Parallelized):
     t0 : float = field(init=True)
@@ -211,7 +153,7 @@ class TabbedDAS(Tabbed, Parallelized):
 
         import cupy as cp
         import numpy as np
-        from pycbf.gpu.__engine__ import das_bmode_cubic_tabbed as gpu_kernel
+        from pycbf.gpu.__engine__ import das_bmode_tabbed_korder_cubic as gpu_kernel
 
         if isinstance(txrxt, npNDArray):
             txrxt = cp.ascontiguousarray(cp.array(txrxt), dtype=np.float32)
@@ -241,7 +183,8 @@ class TabbedDAS(Tabbed, Parallelized):
             bf_params['apodrx'],
             np.int32(k), S,
             np.int32(self.nop),
-            pout
+            pout,
+            np.int32(3)
         )
 
         nblock = np.int32(np.ceil(self.ntx * self.nrx * self.nop / self.nthread))
@@ -259,53 +202,6 @@ class TabbedDAS(Tabbed, Parallelized):
             if key in params.keys(): del params[key]
 
         del __BMFRM_PARAMS__[self.id]
-
-@dataclass(kw_only=True)
-class TabbedDAS_RxSeparate(TabbedDAS):
-
-    def __call__(self, txrxt : cpNDArray | npNDArray, out_as_numpy : bool = True, buffer : cpNDArray | None = None) -> cpNDArray | npNDArray:
-
-        import cupy as cp
-        import numpy as np
-        from pycbf.gpu.__engine__ import das_bmode_rxseparate_cubic_tabbed as gpu_kernel
-
-        if isinstance(txrxt, npNDArray):
-            txrxt = cp.ascontiguousarray(cp.array(txrxt), dtype=np.float32)
-        elif isinstance(txrxt, cpNDArray):
-            if (txrxt.dtype != np.float32) or (txrxt.dtype != cp.float32):
-                raise BeamformerException("Cupy array dtype must be either cupy or numpy float 32")
-        else:
-            raise BeamformerException("txrxt must be an instance of either a cupy or numpy ndarray but was ", type(txrxt))
-        
-        if isinstance(txrxt, cpNDArray):
-            if not txrxt.flags['C_CONTIGUOUS']:
-                txrxt = cp.ascontiguousarray(txrxt, dtype=np.float32)
-
-        if buffer is None: pout = cp.zeros(self.nrx*self.nop, dtype=np.float32)
-        else: raise Exception("Something is wrong with input buffers") #pout = buffer
-
-        k = 16
-        S = cp.ascontiguousarray(cp.array(__make_S_by_k__(k)), dtype=np.float32)
-
-        bf_params = __BMFRM_PARAMS__[self.id]
-        routine_params = (
-            bf_params['rfinfo'],
-            txrxt,
-            bf_params['tautx'],
-            bf_params['apodtx'],
-            bf_params['taurx'],
-            bf_params['apodrx'],
-            np.int32(k), S,
-            np.int32(self.nop),
-            pout
-        )
-
-        nblock = np.int32(np.ceil(self.ntx * self.nrx * self.nop / self.nthread))
-
-        gpu_kernel((nblock,1,1), (self.nthread,1,1), routine_params)
-
-        if out_as_numpy: return cp.asnumpy(pout)
-        else: return pout
 
 def __make_S_by_k__(k:int):
     """Make S matrix for korder cubic interpolation - as described in [1]

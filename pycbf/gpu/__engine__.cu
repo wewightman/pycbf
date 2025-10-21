@@ -1,6 +1,47 @@
 extern "C" {
 
     /**
+     * nearest_interp: nearest neighbor interpolation
+     */
+    float nearest_interp(
+        const float x0,     // starting position of the regularly spaced coordinate vector
+        const float dx,     // spacing of the coordinate vector
+        const int nx,       // number of points in the coordinate vector
+        const float* y,     // values of of the function sampled on x
+        float xout,         // coordintate to interpolate at
+        float fill          // value to fill if out of bounds
+    ) 
+    {
+        int ixo = (int) ((xout - x0)/dx + 0.5f);
+
+        if ((ixo < 0) || (ixo >= nx)) return fill;
+
+        return y[ixo];
+    }
+
+    /**
+     * linear_interp: linear interpolation
+     */
+    float linear_interp(
+        const float x0,     // starting position of the regularly spaced coordinate vector
+        const float dx,     // spacing of the coordinate vector
+        const int nx,       // number of points in the coordinate vector
+        const float* y,     // values of of the function sampled on x
+        float xout,         // coordintate to interpolate at
+        float fill          // value to fill if out of bounds
+    ) 
+    {
+        int ixo = (int) ((xout - x0)/dx);
+
+        if (xout == x0 + dx * nx) return y[nx-1];
+
+        if ((ixo < 0) || (ixo >= nx)) return fill;
+        
+        float frac = (xout - ixo * dx - x0)/dx;
+        return y[ixo] * (1.0f - frac) + y[ixo] * frac;
+    }
+
+    /**
      * makima_interp: cubeic interpolation assuming regular spacing using the makima method
      */
     float makima_interp(
@@ -20,7 +61,7 @@ extern "C" {
         // bc - out of bounds, use fill value
         else if ((xout < x0) || (xout > xn)) return fill;
                                 
-        int ixo = (int) ((xout- x0)/dx);
+        int ixo = (int) ((xout - x0)/dx);
         float mm2, mm1, mp0, mp1, mp2, w0, w1, sp0, sp1, a, b, c, d, delta;
 
         // bc - first point
@@ -216,6 +257,20 @@ extern "C" {
         return a + b * delta + c * delta * delta + d * delta * delta * delta;
     }
 
+    float (*jumpTable[])(
+        const float x0,     // starting position of the regularly spaced coordinate vector
+        const float dx,     // spacing of the coordinate vector
+        const int nx,       // number of points in the coordinate vector
+        const float* y,     // values of of the function sampled on x
+        float xout,         // coordintate to interpolate at
+        float fill          // value to fill if out of bounds
+    ) = {
+        nearest_interp,
+        linear_interp,
+        akima_interp,
+        makima_interp
+    };
+
     /**
      * korder_cubic_interp: cubic interpolation assuming regular spacing using korder fast cubic spline interpolation, described in this reference.
      * Requires a precomputed matrix S which calculates the derivatives of the 1D signal using a length k kernel.
@@ -392,9 +447,8 @@ extern "C" {
         else *apod = 1.0;
     }
 
-
     /**
-     * das_bmode_cubic_synthetic: beamform a DAS bmode using a synthetic point approach
+     * ddas_bmode_synthetic_korder_cubic: beamform a DAS bmode using a synthetic point approach and korder cubic interpolation
      * 
      * RF channel data parameters:
      *   rfinfo: information about the rfdata
@@ -411,21 +465,32 @@ extern "C" {
      *   nvecrx: normal vector of each receive element
      *   alarx:  angular acceptance for each element relative to nvecrx
      * 
+     * Interpolation parameters:
+     *   k: number of points to include in interpolation kernel
+     *   S: precomputed matrix to calculate the signal deriviatives
+     * 
      * Field parameters:
      *   c0: the homogeneos speed of sound in the medium
      *   np: the number of recon points
      *   pvec: the location of each recon point
-     *   pout: a vector length p for the output bmode
+     *   pout: a vector length np, np*tx, np*rx, or np*tx*rx depending on output flag
+     *   flag: int flag indicating if...
+     *          - (0) not summing acros tx and rx
+     *          - (1) summing across tx events only
+     *          - (2) summing across rx events only
+     *          - (3) summing across tx and rx events
      */
     __global__ 
-    void das_bmode_cubic_synthetic(
+    void das_bmode_synthetic_korder_cubic(
         const struct RFInfo rfinfo, const float* rfdata, 
         const float* ovectx, const float* nvectx, const float* t0tx, const float* alatx, const float* doftx, 
         const float* ovecrx, const float* nvecrx, const float* alarx,
-        const float c0, const int np, const float* pvec, float* pout
+        const float k, const float* S,
+        const float c0, const int np, const float* pvec, float* pout,
+        const int flag
     )
     {
-        int tpb, bpg, tid, itx, irx, ip;
+        int tpb, bpg, tid, itx, irx, ip, ipout;
         float tautx, apodtx, taurx, apodrx;
 
         // get cuda step sizes
@@ -466,11 +531,19 @@ extern "C" {
         // If valid, add the beamformed and apodized value
         if (0 != apodtx * apodrx)
         {
+            // calculate the index to save to based on the flag
+            if      (0 == flag) ipout = ip + np*itx*irx;
+            else if (1 == flag) ipout = ip + np*itx;
+            else if (2 == flag) ipout = ip + np*irx;
+            else                ipout = ip;
+
+            // interpolate and add interpolated value to ipout
             atomicAdd(
-                &pout[ip], 
-                apodtx * apodrx * akima_interp(
+                &pout[ipout], 
+                apodtx * apodrx * korder_cubic_interp(
                     rfinfo.tInfo.x0, rfinfo.tInfo.dx, rfinfo.tInfo.nx, 
                     &rfdata[itx*rfinfo.nrx*rfinfo.tInfo.nx + irx*rfinfo.tInfo.nx], 
+                    S, k,
                     tautx + taurx, 0.0
                 )
             );
@@ -478,7 +551,7 @@ extern "C" {
     }
 
     /**
-     * das_bmode_rxseparate_cubic_synthetic: beamform data keeping RX data separate using a synthetic point apporach
+     * ddas_bmode_synthetic_numti_interp: beamform a DAS bmode using a synthetic point approach and korder cubic interpolation
      * 
      * RF channel data parameters:
      *   rfinfo: information about the rfdata
@@ -495,21 +568,35 @@ extern "C" {
      *   nvecrx: normal vector of each receive element
      *   alarx:  angular acceptance for each element relative to nvecrx
      * 
+     * Interpolation parameters:
+     *   inter_flag: integer flag indicating what interpolation type to use
+     *          - (0) nearest neighbor interpolation
+     *          - (1) linear interpolation
+     *          - (2) akima interpolation
+     *          - (3) modified akima (makima) interpolation
+     * 
      * Field parameters:
      *   c0: the homogeneos speed of sound in the medium
      *   np: the number of recon points
      *   pvec: the location of each recon point
-     *   pout: a vector length p x rx for the output bmode
+     *   pout: a buffer of length np, np*tx, np*rx, or np*tx*rx depending on output flag
+     *   flag: int flag indicating if...
+     *          - (0) not summing acros tx and rx
+     *          - (1) summing across tx events only
+     *          - (2) summing across rx events only
+     *          - (3) summing across tx and rx events
      */
     __global__ 
-    void das_bmode_rxseparate_cubic_synthetic(
+    void das_bmode_synthetic_multi_interp(
         const struct RFInfo rfinfo, const float* rfdata, 
         const float* ovectx, const float* nvectx, const float* t0tx, const float* alatx, const float* doftx, 
         const float* ovecrx, const float* nvecrx, const float* alarx,
-        const float c0, const int np, const float* pvec, float* pout
+        const int interp_flag,
+        const float c0, const int np, const float* pvec, float* pout,
+        const int flag
     )
     {
-        int tpb, bpg, tid, itx, irx, ip;
+        int tpb, bpg, tid, itx, irx, ip, ipout;
         float tautx, apodtx, taurx, apodrx;
 
         // get cuda step sizes
@@ -547,21 +634,29 @@ extern "C" {
             &taurx, &apodrx
         );
 
+        // If valid, add the beamformed and apodized value
         if (0 != apodtx * apodrx)
         {
+            // calculate the index to save to based on the flag
+            if      (0 == flag) ipout = ip + np*itx*irx;
+            else if (1 == flag) ipout = ip + np*itx;
+            else if (2 == flag) ipout = ip + np*irx;
+            else                ipout = ip;
+
+            // interpolate and add interpolated value to ipout
             atomicAdd(
-                &pout[irx * np + ip], 
-                apodtx * apodrx * akima_interp(
+                &pout[ipout], 
+                apodtx * apodrx * jumpTable[interp_flag](
                     rfinfo.tInfo.x0, rfinfo.tInfo.dx, rfinfo.tInfo.nx, 
                     &rfdata[itx*rfinfo.nrx*rfinfo.tInfo.nx + irx*rfinfo.tInfo.nx], 
                     tautx + taurx, 0.0
                 )
             );
-        }
+        } 
     }
 
     /**
-     * das_bmode_cubic_tabbed: beamform a DAS bmode using precomputed delay tabs
+     * das_bmode_tabbed_korder_cubic: beamform a DAS bmode using precomputed delay tabs
      * 
      * RF channel data parameters:
      *   rfinfo: information about the rfdata
@@ -575,21 +670,31 @@ extern "C" {
      *   taurx: the recieve delay tabs - in the shape nrx by np
      *   apodrx: the recieve apodizations - in the shape of nrx by np
      * 
+     * Interpolation parameters:
+     *   k: number of points to include in interpolation kernel
+     *   S: precomputed matrix to calculate the signal deriviatives
+     * 
      * Field parameters:
      *   np: the number of recon points
      *   pvec: the location of each recon point
-     *   pout: a vector length p for the output bmode
+     *   pout: a buffer of length np, np*tx, np*rx, or np*tx*rx depending on output flag
+     *   flag: int flag indicating if...
+     *          - (0) not summing acros tx and rx
+     *          - (1) summing across tx events only
+     *          - (2) summing across rx events only
+     *          - (3) summing across tx and rx events
      */
     __global__ 
-    void das_bmode_cubic_tabbed(
+    void das_bmode_tabbed_korder_cubic(
         const struct RFInfo rfinfo, const float* rfdata, 
         const float* tautx, const float* apodtx,
         const float* taurx, const float* apodrx,
         const int k, const float* S,
-        const int np, float* pout
+        const int np, float* pout, 
+        const int flag
     )
     {
-        int tpb, bpg, tid, itx, irx, ip;
+        int tpb, bpg, tid, itx, irx, ip, ipout;
 
         // get cuda step sizes
         tpb = blockDim.x * blockDim.y * blockDim.z; // threads per block
@@ -619,72 +724,14 @@ extern "C" {
         // If valid, add the beamformed and apodized value
         if (0 != apodtx[itx*np + ip] * apodrx[irx*np + ip])
         {
+            // calculate the index to save to based on the flag
+            if      (0 == flag) ipout = ip + np*itx*irx;
+            else if (1 == flag) ipout = ip + np*irx;
+            else if (2 == flag) ipout = ip + np*itx;
+            else                ipout = ip;
+
             atomicAdd(
-                &pout[ip],        
-                apodtx[itx*np + ip] * apodrx[irx*np + ip] * korder_cubic_interp(
-                    rfinfo.tInfo.x0, rfinfo.tInfo.dx, rfinfo.tInfo.nx, 
-                    &rfdata[itx*rfinfo.nrx*rfinfo.tInfo.nx + irx*rfinfo.tInfo.nx], 
-                    S, k,
-                    tautx[itx*np + ip] + taurx[irx*np + ip], 0.0
-                ) 
-            );
-        } 
-    }
-
-        /**
-     * das_bmode_rxseparate_cubic_tabbed: beamform a DAS bmode using precomputed delay tabs and keep rx data separate
-     * 
-     * RF channel data parameters:
-     *   rfinfo: information about the rfdata
-     *   rfdata: grid of rf data in the shape ntx by nrx by nt (stored in tInfo)
-     * 
-     * Transmit parameters:
-     *   tautx: the transmit delay tabs - in the shape ntx by np
-     *   apodtx: the transmit apodizations - in the shape of ntx by np
-     * 
-     * Receive parameters:
-     *   taurx: the recieve delay tabs - in the shape nrx by np
-     *   apodrx: the recieve apodizations - in the shape of nrx by np
-     * 
-     * Interpolation parameters:
-     *   k: order of derivative matrix
-     *   S: k by k matrix used to calculate signal derivatives
-     * 
-     * Field parameters:
-     *   np: the number of recon points
-     *   pvec: the location of each recon point
-     *   pout: a vector length p for the output bmode
-     */
-    __global__ 
-    void das_bmode_rxseparate_cubic_tabbed(
-        const struct RFInfo rfinfo, const float* rfdata, 
-        const float* tautx, const float* apodtx,
-        const float* taurx, const float* apodrx,
-        const int k, const float* S,
-        const int np, float* pout
-    )
-    {
-        int tpb, bpg, tid, itx, irx, ip;
-
-        // get cuda step sizes
-        tpb = blockDim.x * blockDim.y * blockDim.z; // threads per block
-
-        // Unique thread ID
-        tid = threadIdx.x + threadIdx.y * blockDim.x + threadIdx.z * blockDim.x * blockDim.y;
-        tid += tpb * blockIdx.x + tpb * blockIdx.y * gridDim.x + tpb * blockIdx.z * gridDim.x * gridDim.y;
-
-        if (tid >= rfinfo.ntx * rfinfo.nrx * np) return;
-
-        // calculate the transmit, recieve, and recon point indices for the thread we are working with
-        itx = tid / (rfinfo.nrx * np);
-        irx = (tid / np) % rfinfo.nrx;
-        ip  = tid % np; 
-
-        // If valid, add the beamformed and apodized value
-        if (0 != apodtx[itx*np + ip] * apodrx[irx*np + ip])
-        {
-            atomicAdd(
-                &pout[irx * np + ip],        
+                &pout[ipout],        
                 apodtx[itx*np + ip] * apodrx[irx*np + ip] * korder_cubic_interp(
                     rfinfo.tInfo.x0, rfinfo.tInfo.dx, rfinfo.tInfo.nx, 
                     &rfdata[itx*rfinfo.nrx*rfinfo.tInfo.nx + irx*rfinfo.tInfo.nx], 

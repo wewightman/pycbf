@@ -1,1 +1,1 @@
-from pycbf.gpu.__core_bf_classes__ import SyntheticDAS, SyntheticDAS_RxSeparate, TabbedDAS, TabbedDAS_RxSeparate
+from pycbf.gpu.__core_bf_classes__ import SyntheticDAS, TabbedDAS
