@@ -1,1 +1,1 @@
-from pycbf.cpu.__core_bf_classes__ import TabbedDAS
+from pycbf.cpu.__core_bf_classes__ import TabbedBeamformer

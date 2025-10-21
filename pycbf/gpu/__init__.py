@@ -1,1 +1,1 @@
-from pycbf.gpu.__core_bf_classes__ import SyntheticDAS, TabbedDAS
+from pycbf.gpu.__core_bf_classes__ import SyntheticBeamformer, TabbedBeamformer
