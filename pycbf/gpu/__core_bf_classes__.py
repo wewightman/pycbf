@@ -16,6 +16,24 @@ class GPUBeamformer(Beamformer):
     def __post_init__(self):
         Beamformer.__post_init__(self)
 
+    def __check_indexing_limits__(self):
+        ntxrxp = self.ntx*self.nrx*self.nop
+        ntxrxp_max = 2**32 - 1
+        if ntxrxp > ntxrxp_max:
+            raise BeamformerException(
+                f"Too many pixels {self.nop} were requested for {self.ntx} tx and {self.nrx} rx events on a int32 based GPU. "
+                + f"Product of ntx * nrx * npoints must be less than {ntxrxp_max} but was {ntxrxp}."
+                )
+
+        ntxrxt = self.ntx*self.nrx*self.nt
+        ntxrxt_max = 2**31 - 1
+
+        if ntxrxt > ntxrxt_max:
+            raise BeamformerException(
+                f"Too many time points {self.nt} were given for {self.ntx} tx and {self.nrx} rx events on a int32 based GPU. "
+                + f"Product of ntx * nrx * nt must be less than {ntxrxt_max} but was {ntxrxt}."
+                )
+
     def __check_or_init_buffer__(self, buffer : cpNDArray | None = None) -> cpNDArray:
         """Validate input buffer and make sure it is the right size for the given sumtype"""
         import cupy as cp
@@ -32,6 +50,7 @@ class GPUBeamformer(Beamformer):
             pout = cp.zeros(shape, dtype=np.float32)
         else: raise Exception("Something is wrong with input buffers")
 
+        print(pout.shape)
         return pout
     
     def __run_interp_type__(self, txrxt, pout): raise NotImplementedError("You must implement '__run_interp_type__' for class GPUBeamformer")
@@ -81,6 +100,7 @@ class SyntheticBeamformer(Synthetic, GPUBeamformer):
     def __post_init__(self):
         GPUBeamformer.__post_init__(self)
         Synthetic.__post_init__(self)
+        self.__check_indexing_limits__()
 
         from cupy import array, ascontiguousarray, float32
         from pycbf.gpu.__engine__ import RFInfo
@@ -146,13 +166,13 @@ class SyntheticBeamformer(Synthetic, GPUBeamformer):
                 bf_params[ 'alarx'],
                 np.int32(k), S,
                 np.float32(self.c0),
-                np.int32(self.nop),
+                np.uint32(self.nop),
                 bf_params[  'pnts'],
                 pout,
                 np.int32(sumtypes[self.sumtype])
             )
 
-            nblock = np.int32(np.ceil(self.ntx * self.nrx * self.nop / self.nthread))
+            nblock = np.uint32(np.ceil(self.ntx * self.nrx * self.nop / self.nthread))
 
             gpu_kernel((nblock,1,1), (self.nthread,1,1), routine_params)
 
@@ -181,7 +201,7 @@ class SyntheticBeamformer(Synthetic, GPUBeamformer):
                 bf_params[ 'alarx'],
                 np.int32(interp_keys[self.interp['kind']]),
                 np.float32(self.c0),
-                np.int32(self.nop),
+                np.uint32(self.nop),
                 bf_params[  'pnts'],
                 pout,
                 np.int32(sumtypes[self.sumtype])
@@ -206,6 +226,7 @@ class TabbedBeamformer(Tabbed,GPUBeamformer):
     def __post_init__(self):
         GPUBeamformer.__post_init__(self)
         Tabbed.__post_init__(self)
+        self.__check_indexing_limits__()
 
         from cupy import array, ascontiguousarray, float32
         from pycbf.gpu.__engine__ import RFInfo
@@ -261,7 +282,7 @@ class TabbedBeamformer(Tabbed,GPUBeamformer):
                 np.int32(sumtypes[self.sumtype])
             )
 
-            nblock = np.int32(np.ceil(self.ntx * self.nrx * self.nop / self.nthread))
+            nblock = int(np.ceil(self.ntx * self.nrx * self.nop / self.nthread))
 
             gpu_kernel((nblock,1,1), (self.nthread,1,1), routine_params)
 
@@ -285,12 +306,12 @@ class TabbedBeamformer(Tabbed,GPUBeamformer):
                 bf_params['taurx'],
                 bf_params['apodrx'],
                 np.int32(interp_keys[self.interp['kind']]),
-                np.int32(self.nop),
+                np.uint32(self.nop),
                 pout,
                 np.int32(sumtypes[self.sumtype])
             )
 
-            nblock = np.int32(np.ceil(self.ntx * self.nrx * self.nop / self.nthread))
+            nblock = int(np.ceil(self.ntx * self.nrx * self.nop / self.nthread))
 
             gpu_kernel((nblock,1,1), (self.nthread,1,1), routine_params)
 
