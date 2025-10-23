@@ -13,12 +13,13 @@ setup(
     name='pyusel-pycbf',
     description="C-Backed beamforming engines",
     author_email="wew12@duke.edu",
-    packages=['pycbf', 'pycbf.cpu', 'pycbf.cpu._pycbf', 'pycbf.gpu'],
+    packages=['pycbf', 'pycbf.cpu', 'pycbf.cpu._pycbf', 'pycbf.gpu', 'pycbf.dataio'],
     package_dir={
         'pycbf':'pycbf', 
         'pycbf.cpu':'pycbf/cpu',
         'pycbf.cpu._pycbf':'pycbf/cpu',
-        'pycbf.gpu':'pycbf/gpu'
+        'pycbf.gpu':'pycbf/gpu',
+        'pycbf.dataio':'pycbf/dataio'
     },
     license="MIT",
     package_data={'pycbf.gpu':["__engine__.cu"]},
