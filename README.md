@@ -25,21 +25,22 @@ Slight differences in the mechanical properties of the tissue lead to reflection
 Multiple elements can be combined to form an aperture, or a set of transmitting sources and receiving sensors.
 
 To triangulate the source of the reflection - you can use an assumed speed of sound in tissue $c$ - usually assumed to be ~ 1540 m/s in soft tissue. 
-Using this assumed speed of sound, you can calculate how long the pressure wave took to travel from the source point $\vec{x}_{tx}$, the field point $\vec{x}_f$, and the receive point $\vec{x}_{rx}$.
-The travel time for the full path $t_f$ can be represented as the sum of the transmit travel time $\tau_{tx}$ from $\vec{x}_{tx}$ to the field point $\vec{x}_f$ and the receive travel time $\tau_{tx}$ from $\vec{x}_f$ to the field point $\vec{x}_{rx}$. 
+Using this assumed speed of sound, you can calculate how long the pressure wave took to travel from the source point $`\vec{x}_{s}`$, the field point $`\vec{x}_f`$, and the receive point $`\vec{x}_{r}`$.
+The travel time for the full path $`t_f`$ can be represented as the sum of the transmit travel time $`\tau_{tx}`$ from $`\vec{x}_{s}`$ to the field point $`\vec{x}_f`$ and the receive travel time $`\tau_{tx}`$ from $`\vec{x}_f`$ to the field point $`\vec{x}_{r}`$. 
 Assuming that the source, scatter, and sensor are all point like, 
 
 $$t_f = \tau_{tx} + \tau_{rx} = \|\vec{x}_f - \vec{x}_s\|/c + \|\vec{x}_r - \vec{x}_f\|/c.$$
 
-The delayed pressure signal at $p(t_f)$ can then be extracted to find the magnitude of the reflection at the point $\vec{x}_f$.
-To improve the true estimate of the reflected signal at the point $\vec{x}_f$, multiple estimates of $p_{tx,rx}(t_f)$ from all transmit-receive pairs can be summed together to get a DAS image.
-You can also take the weighted sum of the signals from all the transmit-receive pairs, with unique transmit apodization $a_{tx}(\vec{x}_f)$ and receive apodization $a_{rx}(\vec{x}_f)$ so that the reconstucted pressure field $P$ takes the form
+The delayed pressure signal at $`p(t_f)`$ can then be extracted to find the magnitude of the reflection at the point $`\vec{x}_f`$.
+To improve the true estimate of the reflected signal at the point $`\vec{x}_f`$, multiple estimates of $`p_{tx,rx}(t_f)`$ from all transmit-receive pairs can be summed together to get a DAS image.
+You can also take the weighted sum of the signals from all the transmit-receive pairs, with unique transmit apodization $`a_{tx}(\vec{x}_f)`$ and receive apodization $`a_{rx}(\vec{x}_f)`$ so that the reconstucted pressure field $P$ takes the form
 
 $$P(\vec{x}_f) = \sum_{tx,rx} a_{tx}(\vec{x}_f) \cdot a_{rx}(\vec{x}_f) \cdot p_{tx,rx}(t_f).$$
 
 This approach highlights that beamforming can be done on a truly pixel-by-pixel basis. This pixel-by-pixel approach then has two steps:
- 1. Calculate $\tau_{tx}$, $\tau_{rx}$, $a_{tx}$, and $a_{rx}$ for each $\vec{x}_f$
- 2. Interpolate $p_{tx,rx}$ at time $t_f$.
+ 1. Calculate $`\tau_{tx}`$, $`\tau_{rx}`$, $`a_{tx}`$, and $`a_{rx}`$ for each $`\vec{x}_f`$
+ 2. Interpolate $`p_{tx,rx}`$ at time $`t_f`$.
+ 3. Sum across tx and rx events (for DAS)
 
 All beamformers in this repository achieve this point like approach using one of two approaches: A tabbed approach, and a synthetic point approach. As all beamformers take a pythonic class-based form, all beamforming objects are either of the class `Tabbed` or `Synthetic`.
 These approaches have been implemented and tested using compiled C kernels for both the CPU and GPU.
@@ -69,7 +70,7 @@ For example, all the techniques described above can be implemented by delaying a
 
 $$P_{rx}(\vec{x}_f) = \sum_{tx} a_{tx}(\vec{x}_f) \cdot a_{rx}(\vec{x}_f) \cdot p_{tx,rx}(t_f).$$
 
-The calculated values of $P_{rx}(\vec{x}_f)$ can be combined in various ways to make LOC, SLSC, or DMAS images. 
+The calculated values of $`P_{rx}(\vec{x}_f)`$ can be combined in various ways to make LOC, SLSC, or DMAS images. 
 To facilitate the implementation of these and other advanced beamforming techniques, all beamformers are parameterized with the `sumtype` keyword.
 The `sumtype` parameter can take one of four values...
  - `none`: Only delay the data but do not sum across tx or rx events
