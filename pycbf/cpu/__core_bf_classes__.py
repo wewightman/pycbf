@@ -3,17 +3,69 @@ from pycbf.__bf_base_classes__ import Tabbed, Beamformer, BeamformerException, _
 from numpy import ndarray
 
 @dataclass(kw_only=True)
-class TabbedBeamformer(Tabbed, Beamformer):
-    nwrkr : int = 1
+class CPUBeamformer(Beamformer):
     t0 : float = field(init=True)
     dt : float = field(init=True)
     nt :   int = field(init=True)
+
+    nwrkr : int = 1
     thresh : float = 1E-2
     interp : dict = field(default_factory=lambda:{"kind":"nearest", "usf":8})
 
     def __post_init__(self):
         Beamformer.__post_init__(self)
+
+    def __check_indexing_limits__(self):
+        ntxrxp = self.ntx*self.nrx*self.nop
+        ntxrxp_max = 2**31 - 1
+        if ntxrxp > ntxrxp_max:
+            raise BeamformerException(
+                f"Too many pixels {self.nop} were requested for {self.ntx} tx and {self.nrx} rx events on a int32 based GPU. "
+                + f"Product of ntx * nrx * npoints must be less than {ntxrxp_max} but was {ntxrxp}."
+                )
+
+        ntxrxt = self.ntx*self.nrx*self.nt
+        ntxrxt_max = 2**31 - 1
+
+        if ntxrxt > ntxrxt_max:
+            raise BeamformerException(
+                f"Too many time points {self.nt} were given for {self.ntx} tx and {self.nrx} rx events on a int32 based GPU. "
+                + f"Product of ntx * nrx * nt must be less than {ntxrxt_max} but was {ntxrxt}."
+                )
+        
+    def __get_buffer_size__(self) -> int:
+        from numpy import prod
+        # determine output shape based on summing choice
+        if   self.sumtype ==      'none': shape = (self.ntx, self.nrx, self.nop)
+        elif self.sumtype ==   'tx_only': shape = (          self.nrx, self.nop)
+        elif self.sumtype ==   'rx_only': shape = (self.ntx,           self.nop)
+        elif self.sumtype == 'tx_and_rx': shape =                      self.nop
+        else: raise BeamformerException("Type must be 'none', 'tx_only', 'rx_only', or 'tx_and_rx'")
+
+        return prod(shape, dtype=int)
+    
+    @staticmethod
+    def __get_buffer_offset__(id, itx, irx) -> int:
+        params  = __BMFRM_PARAMS__[id]
+        sumtype = params['sumtype']
+        nrx     = params['nrx']
+        nop     = params['nop']
+
+        if   sumtype ==    'none': offset = nop * (irx + itx*nrx)
+        elif sumtype == 'tx_only': offset = nop * irx
+        elif sumtype == 'rx_only': offset = nop * itx
+        else:                      offset = 0
+
+        return offset
+
+@dataclass(kw_only=True)
+class TabbedBeamformer(Tabbed, CPUBeamformer):
+
+    def __post_init__(self):
+        CPUBeamformer.__post_init__(self)
         Tabbed.__post_init__(self)
+        self.__check_indexing_limits__()
+
         from multiprocessing import RawArray
         from ctypes import c_float, POINTER
         from numpy import ascontiguousarray, zeros
@@ -22,13 +74,14 @@ class TabbedBeamformer(Tabbed, Beamformer):
         params = dict()
 
         # copy tx/rx/output point dimensions
-        params['ntx']    = self.ntx
-        params['nrx']    = self.nrx
-        params['nop']    = self.nop
-        params['t0']     = self.t0
-        params['dt']     = self.dt
-        params['nt']     = self.nt
-        params['thresh'] = self.thresh
+        params['ntx']     = self.ntx
+        params['nrx']     = self.nrx
+        params['nop']     = self.nop
+        params['t0']      = self.t0
+        params['dt']      = self.dt
+        params['nt']      = self.nt
+        params['thresh']  = self.thresh
+        params['sumtype'] = self.sumtype
 
         kind = self.interp.get("kind", '')
         if kind == 'cubic':
@@ -54,7 +107,7 @@ class TabbedBeamformer(Tabbed, Beamformer):
             # build an output buffer for each worker
             params['results'] = {}
             for ii in range(self.nwrkr):
-                params['results'][ii] = RawArray(c_type, self.nop)
+                params['results'][ii] = RawArray(c_type, self.__get_buffer_size__())
 
             # build the buffer for input RF data
             params['psig'] = RawArray(c_type, self.nt * self.ntx * self.nrx)
@@ -69,7 +122,7 @@ class TabbedBeamformer(Tabbed, Beamformer):
 
             # build an output buffer for each worker
             params['results'] = {}
-            params['results'][0] = zeros(self.nop, dtype=c_type).ctypes.data_as(POINTER(c_type))
+            params['results'][0] = zeros(self.__get_buffer_size__(), dtype=c_type).ctypes.data_as(POINTER(c_type))
 
             # build the buffer for input RF data
             params['psig'] = zeros(self.nt * self.ntx * self.nrx, dtype=c_type).ctypes.data_as(POINTER(c_type))
@@ -115,17 +168,17 @@ class TabbedBeamformer(Tabbed, Beamformer):
         nt    = params['nt']
         thr   = params['thresh']
 
-        txoff = ravel_multi_index((itx,0), (ntx,nop))
-        rxoff = ravel_multi_index((irx,0), (nrx,nop))
-        rfoff = ravel_multi_index((itx,irx,0), (ntx,nrx,nt))
+        txoff  = ravel_multi_index((itx,0), (ntx,nop))
+        rxoff  = ravel_multi_index((irx,0), (nrx,nop))
+        rfoff  = ravel_multi_index((itx,irx,0), (ntx,nrx,nt))
+        opoff = TabbedBeamformer.__get_buffer_offset__(id, itx, irx)
 
-        pttx = TabbedBeamformer.__offset_pnt__(params['pttx'], txoff)
-        ptrx = TabbedBeamformer.__offset_pnt__(params['ptrx'], rxoff)
-        patx = TabbedBeamformer.__offset_pnt__(params['patx'], txoff)
-        parx = TabbedBeamformer.__offset_pnt__(params['parx'], rxoff)
-        psig = TabbedBeamformer.__offset_pnt__(params['psig'], rfoff)
-
-        out  = params['results'][iwrkr]
+        pttx   = TabbedBeamformer.__offset_pnt__(params['pttx'],           txoff)
+        ptrx   = TabbedBeamformer.__offset_pnt__(params['ptrx'],           rxoff)
+        patx   = TabbedBeamformer.__offset_pnt__(params['patx'],           txoff)
+        parx   = TabbedBeamformer.__offset_pnt__(params['parx'],           rxoff)
+        psig   = TabbedBeamformer.__offset_pnt__(params['psig'],           rfoff)
+        out    = TabbedBeamformer.__offset_pnt__(params['results'][iwrkr], opoff)
 
         if interp['kind'] == 'cubic':
             __cpu_pycbf__.beamform_cubic(
@@ -192,7 +245,7 @@ class TabbedBeamformer(Tabbed, Beamformer):
                 TabbedBeamformer.__beamform_single__(id, itx, irx)
 
 
-        temp = array([params['results'][id][:self.nop] for id in range(self.nwrkr)])
+        temp = array([params['results'][id][:self.__get_buffer_size__()] for id in range(self.nwrkr)])
 
         return sum(temp, axis=0)
 
