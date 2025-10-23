@@ -49,8 +49,7 @@ class GPUBeamformer(Beamformer):
         if buffer is None: 
             pout = cp.zeros(shape, dtype=np.float32)
         else: raise Exception("Something is wrong with input buffers")
-
-        print(pout.shape)
+        
         return pout
     
     def __run_interp_type__(self, txrxt, pout): raise NotImplementedError("You must implement '__run_interp_type__' for class GPUBeamformer")
@@ -172,7 +171,7 @@ class SyntheticBeamformer(Synthetic, GPUBeamformer):
                 np.int32(sumtypes[self.sumtype])
             )
 
-            nblock = np.uint32(np.ceil(self.ntx * self.nrx * self.nop / self.nthread))
+            nblock = int(np.ceil(self.ntx * self.nrx * self.nop / self.nthread))
 
             gpu_kernel((nblock,1,1), (self.nthread,1,1), routine_params)
 
@@ -207,7 +206,7 @@ class SyntheticBeamformer(Synthetic, GPUBeamformer):
                 np.int32(sumtypes[self.sumtype])
             )
 
-            nblock = np.int32(np.ceil(self.ntx * self.nrx * self.nop / self.nthread))
+            nblock = int(np.ceil(self.ntx * self.nrx * self.nop / self.nthread))
 
             gpu_kernel((nblock,1,1), (self.nthread,1,1), routine_params)
 
