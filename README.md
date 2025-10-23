@@ -41,7 +41,7 @@ This approach highlights that beamforming can be done on a truly pixel-by-pixel 
  1. Calculate $\tau_{tx}$, $\tau_{rx}$, $a_{tx}$, and $a_{rx}$ for each $\vec{x}_f$
  2. Interpolate $p_{tx,rx}$ at time $t_f$.
 
-All beamformers in this repository achieve this point like approach using one of two approaches: A tabbed approach, and a synthetic point approach. As all beamformers take a pythonic class-based form, all beamforming objects are either of the class `Tabbed` or `SynthPointed`.
+All beamformers in this repository achieve this point like approach using one of two approaches: A tabbed approach, and a synthetic point approach. As all beamformers take a pythonic class-based form, all beamforming objects are either of the class `Tabbed` or `Synthetic`.
 These approaches have been implemented and tested using compiled C kernels for both the CPU and GPU.
 
 ### `Tabbed` software beamforming class
@@ -55,20 +55,58 @@ These software beamformers are, essentially, specialized interpolation objects.
 This general purpose class of beamformer allows for any variation of delay tab calculation - including delay tab calculation for arbitrary speed of sound maps.
 Future releases will include easy wrapper functions to generate these four matrices for common imaging configurations.
 
-### `SynthPointed` software beamforming class
-The software beamforming classes that inherit from the `SynthPointed` class require more strict assumptions, but allow for very rapid GPU-based beamforming as delay tab calculation is simplified and requires less global memory access during run time.
+### `Synthetic` software beamforming class
+The software beamforming classes that inherit from the `Synthetic` class require more strict assumptions, but allow for very rapid GPU-based beamforming as delay tab calculation is simplified and requires less global memory access during run time.
 This approach is based on approximating all signal sources and signal sensors as points in space with some position and directivity.
 
 This class requires an assumed speed of sound, position, orientation, and angular sensitivity of all transmit and receive virtual points, as well as the time at which the wave field passes through the transmit virtual points.
 
 This approach is currently not implemented and not recommended for the CPU-based classes as the extra repeated computations for the delay tabs could be prohibitive. Future releases will have this approach implemented on the CPU to allow testing of either algorithm on any system regardless of the available resources.
 
+## Advanced beamformers
+Multiple advanced beamforming techniques such as lag one *(spatial)* coherence (LOC) [2,3], short lag spatial coherence (SLSC) [4], and delay multiply and sum (DMAS) [5] beamforming are all based on the basic principles of delay and sum.
+For example, all the techniques described above can be implemented by delaying and summing across the transmit events only so that
+
+$$P_{rx}(\vec{x}_f) = \sum_{tx} a_{tx}(\vec{x}_f) \cdot a_{rx}(\vec{x}_f) \cdot p_{tx,rx}(t_f).$$
+
+The calculated values of $P_{rx}(\vec{x}_f)$ can be combined in various ways to make LOC, SLSC, or DMAS images. 
+To facilitate the implementation of these and other advanced beamforming techniques, all beamformers are parameterized with the `sumtype` keyword.
+The `sumtype` parameter can take one of four values...
+ - `none`: Only delay the data but do not sum across tx or rx events
+ - `tx_only`: Only sum across tx events
+ - `rx_only`: Only sum across rx events
+ - `tx_and_rx`: Sum across all tx and rx events - classic DAS beamforming
+
+Preliminary implementations of advanced beamformers can be seen in the [advanced beamforming notebook](/examples/advanced_beamforming.ipynb) found in the [examples folder](/examples/).
+
+## Interpolation methods
+Currently, the CPU and GPU approaches have been implemented with different, optimized interpolation methods - though future releases will include fully matched interpolation options.
+Both the GPU and CPU beamformers are set to use different optimized interpolation methods on default.
+The interpolation method can be user defined with the parameter `interp` - a dictionary with a `kind` key with one of the following values...
+- `nearest`: (CPU and GPU) Extracts the nearest sample of the pressure signal to the delay tab. 
+    - (CPU only) If optional integer upsample factor parameter `usf` > 1, upsamples the RF channel data using ideal `cubic` interpolation 
+- `linear`: (GPU only) does linear interpolation between adjacent points
+- `korder_cubic`: (GPU only) 1D cubic spline method described by Præsius and Jensen [7].
+    - Based on integer parameter `k`, estimates signal first derivatives using a convolution kernel of length `k` where `k` > 4 and even
+    - Numerical interpolation noise reduces with increasing `k` - but leads to slower computation times
+- `akima`: (GPU only) Akima cubic interpolation uses five signal points at most
+- `makima`: (GPU only) modified Akima (mAkima) cubic interpolation uses five signal points at most but is smoother than akima
+- `cubic`: (CPU only) Refers to exact cubic hermite spline interpolation with signal second derivatives estimated from the entire signal trace [6]
+
+A comparison of the numerical noise (relative to the ideal cubic interpolation method) of each interpolation method is compared in the [compare interpolation methods notebook](/examples/compare_interpolation_methods.ipynb) in the [examples](/examples/) folder.
+
 ## References
-[1] V. Perrot, M. Polichetti, F. Varray, and D. Garcia, “So you think you can DAS? A viewpoint on delay-and-sum beamforming,” Ultrasonics, vol. 111, p. 106309, Mar. 2021, doi: 10.1016/j.ultras.2020.106309.
+1. V. Perrot, M. Polichetti, F. Varray, and D. Garcia, “So you think you can DAS? A viewpoint on delay-and-sum beamforming,” Ultrasonics, vol. 111, p. 106309, Mar. 2021, doi: 10.1016/j.ultras.2020.106309.
+2. W. Long, N. Bottenus, and G. E. Trahey, “Lag-One Coherence as a Metric for Ultrasonic Image Quality,” IEEE Transactions on Ultrasonics, Ferroelectrics, and Frequency Control, vol. 65, no. 10, pp. 1768–1780, Oct. 2018, doi: 10.1109/TUFFC.2018.2855653.
+3. K. Offerdahl, M. Huber, W. Long, N. Bottenus, R. Nelson, and G. Trahey, “Occult Regions of Suppressed Coherence in Liver B-Mode Images,” Ultrasound Med Biol, vol. 48, no. 1, pp. 47–58, Jan. 2022, doi: 10.1016/j.ultrasmedbio.2021.09.007.
+4. J. J. Dahl et al., “Coherence beamforming and its applications to the difficult-to-image patient,” IEEE International Ultrasonics Symposium, IUS, Oct. 2017, doi: 10.1109/ULTSYM.2017.8091607.
+5. G. Matrone, A. S. Savoia, G. Caliano, and G. Magenes, “The Delay Multiply and Sum Beamforming Algorithm in Ultrasound B-Mode Medical Imaging,” IEEE Transactions on Medical Imaging, vol. 34, no. 4, pp. 940–949, Apr. 2015, doi: 10.1109/TMI.2014.2371235.
+6. W. H. Press, Ed., Numerical recipes: the art of scientific computing, 3rd ed. Cambridge, UK ; New York: Cambridge University Press, 2007.
+7. S. K. Præsius and J. Arendt Jensen, “Fast Spline Interpolation using GPU Acceleration,” in 2024 IEEE Ultrasonics, Ferroelectrics, and Frequency Control Joint Symposium (UFFC-JS), Sep. 2024, pp. 1–5. doi: 10.1109/UFFC-JS60046.2024.10793976.
 
 ## Testing
 Unit testing has not yet been implemented - however, you may run the example scripts.
 
 ## Contributors
- - @wewightman: Owner and sole developer
+ - @wewightman: Owner and developer
 

@@ -11,7 +11,7 @@ class GPUBeamformer(Beamformer):
     nt :   int = field(init=True)
 
     nthread : int = 512
-    interp : dict = field(default_factory=lambda:{"kind":"korder_cubic", "k":16})
+    interp : dict = field(default_factory=lambda:{"kind":"korder_cubic", "k":8})
 
     def __post_init__(self):
         Beamformer.__post_init__(self)
@@ -49,7 +49,7 @@ class GPUBeamformer(Beamformer):
         if buffer is None: 
             pout = cp.zeros(shape, dtype=np.float32)
         else: raise Exception("Something is wrong with input buffers")
-        
+
         return pout
     
     def __run_interp_type__(self, txrxt, pout): raise NotImplementedError("You must implement '__run_interp_type__' for class GPUBeamformer")
