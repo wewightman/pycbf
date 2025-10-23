@@ -49,7 +49,7 @@ This approach highlights that beamforming can be done on a truly pixel-by-pixel 
     - It should be noted that you can control which tx-rx events you are summing over with applications towards advanced beamformers
 
 All beamformers in this repository achieve this point like approach using one of two approaches: A tabbed approach, and a synthetic point approach. As all beamformers take a pythonic class-based form, all beamforming objects are either of the class `Tabbed` or `Synthetic`.
-These approaches have been implemented and tested using compiled C kernels for both the CPU and GPU.
+These approaches have been implemented and tested using compiled C kernels for the CPU kernel and raw CUDA kernels for the GPU.
 
 ### `Tabbed` beamforming class
 The software beamforming classes that inherit from the `Tabbed` class require the user to input/precalculate all transmit and receive delay tabs and apodizations.

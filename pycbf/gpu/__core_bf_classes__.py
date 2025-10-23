@@ -1,3 +1,4 @@
+"""Base beamforming classes implemented for the GPU"""
 from dataclasses import dataclass, field
 from pycbf.__bf_base_classes__ import Synthetic, Tabbed, Beamformer, BeamformerException, __BMFRM_PARAMS__
 
@@ -6,6 +7,8 @@ from cupy  import ndarray as cpNDArray
 
 @dataclass(kw_only=True)
 class GPUBeamformer(Beamformer):
+    """Base class for all GPU beamformers
+    """
     t0 : float = field(init=True)
     dt : float = field(init=True)
     nt :   int = field(init=True)
@@ -94,7 +97,8 @@ class GPUBeamformer(Beamformer):
 
 @dataclass(kw_only=True)
 class SyntheticBeamformer(Synthetic, GPUBeamformer):
-
+    """GPU implementation of synthetic-point based beamformers
+    """
     def __post_init__(self):
         GPUBeamformer.__post_init__(self)
         Synthetic.__post_init__(self)
@@ -138,7 +142,8 @@ class SyntheticBeamformer(Synthetic, GPUBeamformer):
         __BMFRM_PARAMS__[self.id] = params
 
     def __run_interp_type__(self, txrxt : cpNDArray, pout : cpNDArray):
-        """Based on the interpolation type, use the correct engine"""
+        """Based on the interpolation type, use the correct engine
+        """
         import cupy as cp
         import numpy as np
 
@@ -220,7 +225,8 @@ class SyntheticBeamformer(Synthetic, GPUBeamformer):
 
 @dataclass(kw_only=True)
 class TabbedBeamformer(Tabbed,GPUBeamformer):
-
+    """GPU-based implementation of tabbed beamformers reading from procomputed delay tabs and apodizations
+    """
     def __post_init__(self):
         GPUBeamformer.__post_init__(self)
         Tabbed.__post_init__(self)

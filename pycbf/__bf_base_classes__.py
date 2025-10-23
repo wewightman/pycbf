@@ -1,3 +1,4 @@
+"""Basic beamforming base classes to build all specific beamforming classes from. Specific implementation details can be found in the hardware-specific modules `pycbf.cpu` and `pycbf.gpu`"""
 from dataclasses import dataclass, field
 from typing import ClassVar, Literal
 from numpy import ndarray
@@ -11,6 +12,32 @@ class BeamformerException(Exception): pass
 
 @dataclass(kw_only=True)
 class Beamformer():
+    """The base beamforming class for all beamformers in this repository
+    
+    This class registers an instance of a `Beamformer` in global memory so no matter the parallelization technique or hardware being used, the parameters can be stored ina global location. This class automatically generates an `id` field on instantiation.
+    It also requires the user to identify how the delayed data is summed and what kind of interpolation is being used.
+
+    # Defining `sumtype`
+    The `sumtype` keyword parameter determines which axes are being summed over inside of the optimized C or CUDA extension libraries.
+
+    - To make a simple delay and sum (DAS) beamformer, you must sum over all tx and rx events - which can be achieved in kernel using `sumtype='tx_and_rx'`, allowing the use of smaller output buffers.
+    - To keep all tx and rx events separate, use `sumtype='none'`. This output can be used for many advanced beamforming techniques - but requires very large output buffers.
+    - To balance the optimization of output buffer size and advanced beamforming flexibility, two other options - `sumtype='rx_only'` and `sumtype='tx_only'` can be used
+
+    # Defining the interpolation engine
+    All beamfomrers in this repository should have the same available interpolation options (eventually). The options and sub options are as follows...
+
+    The interpolation method can be user defined with the parameter `interp` - a dictionary with a `kind` key with one of the following values...
+    - `nearest`: (CPU and GPU) Extracts the nearest sample of the pressure signal to the delay tab. 
+        - (CPU only) If optional integer upsample factor parameter `usf` > 1, upsamples the RF channel data using ideal `cubic` interpolation 
+    - `linear`: (GPU only) does linear interpolation between adjacent points
+    - `korder_cubic`: (GPU only) 1D cubic spline method described by Præsius and Jensen.
+        - Based on integer parameter `k`, estimates signal first derivatives using a convolution kernel of length `k` where `k` > 4 and even
+        - Numerical interpolation noise reduces with increasing `k` - but leads to slower computation times
+    - `akima`: (GPU only) Akima cubic interpolation uses five signal points at most
+    - `makima`: (GPU only) modified Akima (mAkima) cubic interpolation uses five signal points at most but is smoother than akima
+    - `cubic`: (CPU only) Refers to exact cubic hermite spline interpolation with signal second derivatives estimated from the entire signal trace
+    """
     nbf : ClassVar[int] = 0
     id  : int = field(init=False)
     interp : dict = field(default_factory=lambda:{"kind":"cubic"})
@@ -64,6 +91,11 @@ class Beamformer():
 
 @dataclass(kw_only=True)
 class Tabbed():    
+    """The minimum inputs for a `Tabbed` beamformer are four matrices: `tautx`, `taurx`, `apodtx`, and `apodrx`. 
+    If `Np` is the number of beamforming points, `Ntx` is the number of transmit events, and `Nrx` is the number of receive events...
+    - `tautx` and `apodtx` both have the shape `Ntx` by `Np`
+    - `taurx` and `apodrx` both have the shape `Nrx` by `Np`
+    """
     tautx  : ndarray = field(init=True)
     taurx  : ndarray = field(init=True)
     apodtx : ndarray = field(init=True)
@@ -102,7 +134,30 @@ class Tabbed():
         self.nop = nop
 
 @dataclass(kw_only=True)
-class Synthetic():    
+class Synthetic():   
+    """The `Synthetic` specific parameters are...
+    - `ovectx`: the origin of the transmit point
+        - an Ntx by 2 or 3 matrix
+    - `nvectx`: the normal vector of the transmit point indicating the direction of wave propagation
+        - Ntx by 2 or 3 matrix
+    - `doftx`: the depth of field around `ovectx` to beamform parallel to `nvectx`
+        - allows for more accurate reconstruction of the physically realistic DOF around a focal point with focused transmits
+        - length Ntx vector
+    - `alatx`: the acceptance angle/directivity of the transmit point relative to `nvectx`
+        - can be used to encode things like F-number for a focused beam or to limit the beamformed FOV based on the projected source through the physical aperture
+        - length Ntx vector
+    - `t0tx`: the time point that the wave passes through `ovectx` relative to the input time trace
+        - length Ntx vector
+    - `ovecrx`: the location of the receive point
+        - Nrx by 2 or 3 matrix
+    - `nvecrx`: the orientation of the receive point
+        - Nrx by 2 or 3 matrix
+    - `alarx`: the acceptance angle/directivity of the receive point
+        - length Nrx vector
+    - `c0`: the assumed speed of sound in the medium.
+    - `pnts`: a vector containing the points to beamform
+        - Np by 2 or 3 matrix
+    """
     ovectx  : ndarray = field(init=True)    # source point location (ntx by ndim matrix)
     nvectx  : ndarray = field(init=True)    # normal vector of the source point (ntx by ndim matrix)
     doftx   : ndarray = field(init=True)    # depth of field over which to use planar delay tabs around ovec (ntx length vector)
