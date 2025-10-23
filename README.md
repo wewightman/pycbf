@@ -1,19 +1,24 @@
 # pycbf
-This repository contains extension accelerated beamformers to be used with Python. My goal with this repository is to make an easily interpretable, easy-to-use, flexible, and decently performent set of software beaformers that can be used on any (almost) system.
-
-My current research area of focus is ultrasound shear wave elastography imaging, so many examples will be relevant to that field.
+This repository contains extension accelerated beamformers to be used with Python. My goal with this repository is to make an easily interpretable, easy-to-use, flexible, and decently performant set of software beaformers that can be used on (almost) any system.
 
 ## Compilation and Installation
-These scripts should be installable on all systems with pip install - though if installing on Windows - you will need the C compilation toolkits to install automatically. It is a goal of mine to pre-compile windows binaries in the future and make this repo available on pipy - but that is currently out of the scope of my work.
+These scripts should be installable on all systems with pip install.
 
 ```
 git clone https://github.com/wewightman/pycbf.git
 cd pycbf
 python -m pip install .
 ```
+### Install requirements
+#### CPU beamforming
+The raw float32 based C code can be found [in this folder](/pycbf/cpu/), with the python interface implemented with the `ctypes` module - as seen in [this file](/pycbf/cpu/__engine__.py)
+If installing on Windows - you will need the C compilation toolkits to install automatically. 
+It is a goal of mine to pre-compile windows binaries in the future and make this repo available on pipy - but that is currently out of the scope of my work.
 
 ### GPU functionality
-All GPU functionality is achieved though the use of CuPy - which is best tested and validated for Nvidia GPUs - though future releases will also support other GPU types.
+All GPU functionality is achieved though the use of [CuPy](https://cupy.dev/) - which is best tested and validated for NVIDIA GPUs - though future releases may also support other GPU types.
+Though you do not need to have CuPy installed to run `pip install` for this package, I highly recommend installing the pre-compiled binaries.
+The [raw float32-based extension Cuda code](/pycbf/gpu/__engine__.cu) can be found in [this folder](/pycbf/gpu/) with the CuPy wrapper implemented in [this file](/pycbf/gpu/__engine__.py).
 
 ## Background and philosophy
 ### Basics of Delay-And-Sum (DAS) beamforming
@@ -26,26 +31,27 @@ Multiple elements can be combined to form an aperture, or a set of transmitting 
 
 To triangulate the source of the reflection - you can use an assumed speed of sound in tissue $c$ - usually assumed to be ~ 1540 m/s in soft tissue. 
 Using this assumed speed of sound, you can calculate how long the pressure wave took to travel from the source point $`\vec{x}_{s}`$, the field point $`\vec{x}_f`$, and the receive point $`\vec{x}_{r}`$.
-The travel time for the full path $`t_f`$ can be represented as the sum of the transmit travel time $`\tau_{tx}`$ from $`\vec{x}_{s}`$ to the field point $`\vec{x}_f`$ and the receive travel time $`\tau_{tx}`$ from $`\vec{x}_f`$ to the field point $`\vec{x}_{r}`$. 
+The travel time for the full path $`t_{tx,rx}(\vec{x}_f)`$ can be represented as the sum of the transmit travel time $`\tau_{tx}(\vec{x}_f)`$ from $`\vec{x}_{s}`$ to the field point $`\vec{x}_f`$ and the receive travel time $`\tau_{rx}(\vec{x}_f)`$ from $`\vec{x}_f`$ to the field point $`\vec{x}_{r}`$. 
 Assuming that the source, scatter, and sensor are all point like, 
 
-$$t_f = \tau_{tx} + \tau_{rx} = \|\vec{x}_f - \vec{x}_s\|/c + \|\vec{x}_r - \vec{x}_f\|/c.$$
+$$t_{tx,rx}(\vec{x}_f) = \tau_{tx}(\vec{x}_f) + \tau_{rx}(\vec{x}_f) = \|\vec{x}_f - \vec{x}_s\|/c + \|\vec{x}_r - \vec{x}_f\|/c.$$
 
-The delayed pressure signal at $`p(t_f)`$ can then be extracted to find the magnitude of the reflection at the point $`\vec{x}_f`$.
+The delayed pressure signal for a given tx-rx event $`p_{tx,rx}(t_f)`$ can then be extracted to find the magnitude of the reflection at the point $`\vec{x}_f`$.
 To improve the true estimate of the reflected signal at the point $`\vec{x}_f`$, multiple estimates of $`p_{tx,rx}(t_f)`$ from all transmit-receive pairs can be summed together to get a DAS image.
-You can also take the weighted sum of the signals from all the transmit-receive pairs, with unique transmit apodization $`a_{tx}(\vec{x}_f)`$ and receive apodization $`a_{rx}(\vec{x}_f)`$ so that the reconstucted pressure field $P$ takes the form
+You can also take the weighted sum of the signals from all the transmit-receive pairs, with unique transmit apodization $`a_{tx}(\vec{x}_f)`$ and receive apodization $`a_{rx}(\vec{x}_f)`$ so that the reconstructed pressure field $P$ takes the form
 
-$$P(\vec{x}_f) = \sum_{tx,rx} a_{tx}(\vec{x}_f) \cdot a_{rx}(\vec{x}_f) \cdot p_{tx,rx}(t_f).$$
+$$P(\vec{x}_f) = \sum_{tx,rx} a_{tx}(\vec{x}_f) \cdot a_{rx}(\vec{x}_f) \cdot p_{tx,rx}(t_{tx,rx}(\vec{x}_f)).$$
 
-This approach highlights that beamforming can be done on a truly pixel-by-pixel basis. This pixel-by-pixel approach then has two steps:
+This approach highlights that beamforming can be done on a truly pixel-by-pixel basis. This pixel-by-pixel approach then has three steps:
  1. Calculate $`\tau_{tx}`$, $`\tau_{rx}`$, $`a_{tx}`$, and $`a_{rx}`$ for each $`\vec{x}_f`$
- 2. Interpolate $`p_{tx,rx}`$ at time $`t_f`$.
+ 2. Interpolate $`p_{tx,rx}`$ at time $`t_{tx,rx}(\vec{x}_f)`$.
  3. Sum across tx and rx events (for DAS)
+    - It should be noted that you can control which tx-rx events you are summing over with applications towards advanced beamformers
 
 All beamformers in this repository achieve this point like approach using one of two approaches: A tabbed approach, and a synthetic point approach. As all beamformers take a pythonic class-based form, all beamforming objects are either of the class `Tabbed` or `Synthetic`.
 These approaches have been implemented and tested using compiled C kernels for both the CPU and GPU.
 
-### `Tabbed` software beamforming class
+### `Tabbed` beamforming class
 The software beamforming classes that inherit from the `Tabbed` class require the user to input/precalculate all transmit and receive delay tabs and apodizations.
 The minimum inputs for a `Tabbed` beamformer are four matrices: `tautx`, `taurx`, `apodtx`, and `apodrx`. 
 If `Np` is the number of beamforming points, `Ntx` is the number of transmit events, and `Nrx` is the number of receive events...
@@ -56,11 +62,35 @@ These software beamformers are, essentially, specialized interpolation objects.
 This general purpose class of beamformer allows for any variation of delay tab calculation - including delay tab calculation for arbitrary speed of sound maps.
 Future releases will include easy wrapper functions to generate these four matrices for common imaging configurations.
 
-### `Synthetic` software beamforming class
+### `Synthetic` beamforming class
 The software beamforming classes that inherit from the `Synthetic` class require more strict assumptions, but allow for very rapid GPU-based beamforming as delay tab calculation is simplified and requires less global memory access during run time.
+In other words, this approach calculates $`\tau_{tx}(\vec{x}_f)`$, $`\tau_{rx}(\vec{x}_f)`$, $`a_{tx}(\vec{x}_f)`$, and $`a_{rx}(\vec{x}_f)`$ and interpolates $`p_{tx,rx}(t_{tx,rx}(\vec{x}_f))`$ on the fly.
 This approach is based on approximating all signal sources and signal sensors as points in space with some position and directivity.
 
-This class requires an assumed speed of sound, position, orientation, and angular sensitivity of all transmit and receive virtual points, as well as the time at which the wave field passes through the transmit virtual points.
+The `Synthetic` specific parameters are...
+- `ovectx`: the origin of the transmit point
+    - an Ntx by 2 or 3 matrix
+- `nvectx`: the normal vector of the transmit point indicating the direction of wave propagation
+    - Ntx by 2 or 3 matrix
+- `doftx`: the depth of field around `ovectx` to beamform parallel to `nvectx`
+    - allows for more accurate reconstruction of the physically realistic DOF around a focal point with focused transmits
+    - length Ntx vector
+- `alatx`: the acceptance angle/directivity of the transmit point relative to `nvectx`
+    - can be used to encode things like F-number for a focused beam or to limit the beamformed FOV based on the projected source through the physical aperture
+    - length Ntx vector
+- `t0tx`: the time point that the wave passes through `ovectx` relative to the input time trace
+    - length Ntx vector
+- `ovecrx`: the location of the receive point
+    - Nrx by 2 or 3 matrix
+- `nvecrx`: the orientation of the receive point
+    - Nrx by 2 or 3 matrix
+- `alarx`: the acceptance angle/directivity of the receive point
+    - length Nrx vector
+- `c0`: the assumed speed of sound in the medium.
+- `pnts`: a vector containing the points to beamform
+    - Np by 2 or 3 matrix
+
+This approach currently only allows for rectangular/binary apodizations - with other apodization options planned for suture releases.
 
 This approach is currently not implemented and not recommended for the CPU-based classes as the extra repeated computations for the delay tabs could be prohibitive. Future releases will have this approach implemented on the CPU to allow testing of either algorithm on any system regardless of the available resources.
 
@@ -68,7 +98,7 @@ This approach is currently not implemented and not recommended for the CPU-based
 Multiple advanced beamforming techniques such as lag one *(spatial)* coherence (LOC) [2,3], short lag spatial coherence (SLSC) [4], and delay multiply and sum (DMAS) [5] beamforming are all based on the basic principles of delay and sum.
 For example, all the techniques described above can be implemented by delaying and summing across the transmit events only so that
 
-$$P_{rx}(\vec{x}_f) = \sum_{tx} a_{tx}(\vec{x}_f) \cdot a_{rx}(\vec{x}_f) \cdot p_{tx,rx}(t_f).$$
+$$P_{rx}(\vec{x}_f) = \sum_{tx} a_{tx}(\vec{x}_f) \cdot a_{rx}(\vec{x}_f) \cdot p_{tx,rx}(t_{tx,rx}(\vec{x}_f)).$$
 
 The calculated values of $`P_{rx}(\vec{x}_f)`$ can be combined in various ways to make LOC, SLSC, or DMAS images. 
 To facilitate the implementation of these and other advanced beamforming techniques, all beamformers are parameterized with the `sumtype` keyword.
