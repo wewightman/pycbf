@@ -86,7 +86,7 @@ class GPUBeamformer(Beamformer):
             )
 
         # validate that input buffor is correct format or make new one
-        pout = self.__check_or_init_buffer__(buffer)
+        pout = GPUBeamformer.__check_or_init_buffer__(self, buffer)
         
         # beamform the data with specified summing
         self.__run_interp_type__(txrxt, pout)
@@ -107,7 +107,8 @@ class SyntheticBeamformer(Synthetic, GPUBeamformer):
         from cupy import array, ascontiguousarray, float32
         from pycbf.gpu.__engines__ import RFInfo
         import numpy as np
-        params = dict()
+
+        params = __BMFRM_PARAMS__[self.id]
 
         # copy TX parameters into shared GPU memory
         params['ovectx'] = ascontiguousarray(array(self.ovectx), dtype=float32)
@@ -237,7 +238,7 @@ class TabbedBeamformer(Tabbed,GPUBeamformer):
         import numpy as np
 
         # Access the global shared buffer
-        params = dict()
+        params = __BMFRM_PARAMS__[self.id]
 
         # copy tx/rx/output point dimensions
         params['nop']    = self.nop
