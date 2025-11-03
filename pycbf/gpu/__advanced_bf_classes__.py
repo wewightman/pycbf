@@ -50,8 +50,8 @@ class __GPU_DMAS_Beamformer__(DMASBeamformer):
         params = __BMFRM_PARAMS__[self.id]
         kernel_params = (
             imbf,
-            np.int32(self.nrx),
-            np.int32(self.nop),
+            np.int64(self.nrx),
+            np.int64(self.nop),
             params['lags'],
             np.int32(self.nlags),
             dmasflag,

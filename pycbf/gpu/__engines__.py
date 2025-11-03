@@ -11,7 +11,7 @@ with open(__base_eng_path__, mode='r') as fp: raw_module = fp.read()
 __base_eng__ = cp.RawModule(code=raw_module)
 
 xInfo = np.dtype([('x0', np.float32),('dx', np.float32),('nx', np.int32)])
-RFInfo = np.dtype([('ntx', np.int32),('nrx', np.int32),('ndim', np.int32),('tInfo', xInfo)])
+RFInfo = np.dtype([('ntx', np.int64),('nrx', np.int64),('ndim', np.int32),('tInfo', xInfo)])
 
 das_bmode_synthetic_korder_cubic = __base_eng__.get_function("das_bmode_synthetic_korder_cubic")
 das_bmode_synthetic_multi_interp = __base_eng__.get_function("das_bmode_synthetic_multi_interp")

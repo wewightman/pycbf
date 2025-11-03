@@ -13,17 +13,17 @@ extern "C" {
      */
     __global__
     void calc_dmas(
-        const float* imsep,     // beamformed images before summing on the correlation axis (nsep by np)
-        const int    nsep,      // number of separated images on the correlation axis
-        const int    np,        // number of points in the image
-        const int*   lags,      // an integer array specifying the lag indices to sum over
-        const int    nlag,      // the number of lags in the lag array
-        const int    sumtype,   // a flag indicating signed-square-root DMAS (0) or power DMAS (1)
-        const int    sumlags,   // a flag indicating whether to sub across the lags (1) or not (0)
-        float*       imout      // the DMAS image - size np or nlag by np depending on sumlags
+        const float*    imsep,     // beamformed images before summing on the correlation axis (nsep by np)
+        const long long nsep,      // number of separated images on the correlation axis
+        const long long np,        // number of points in the image
+        const int*      lags,      // an integer array specifying the lag indices to sum over
+        const int       nlag,      // the number of lags in the lag array
+        const int       sumtype,   // a flag indicating signed-square-root DMAS (0) or power DMAS (1)
+        const int       sumlags,   // a flag indicating whether to sub across the lags (1) or not (0)
+        float*          imout      // the DMAS image - size np or nlag by np depending on sumlags
     )
     {
-        int tid, tpb, ilag, isep, ip, ipout;
+        long long tid, tpb, ilag, isep, ip, ipout;
         float product;
 
         // get cuda step sizes
@@ -52,7 +52,7 @@ extern "C" {
         // multiply th lag pairs
         product = imsep[ip + np*isep] * imsep[ip + np*(isep + ilag)];
 
-        // process the multiplication and sum
+        // process the multiplication and sum - 0 -> SSR-DMAS and 1 -> power-DMAS
         if      (sumtype == 0) atomicAdd(&imout[ipout], sign(product)*sqrt(abs(product)));
         else if (sumtype == 1) atomicAdd(&imout[ipout], product);
     }
