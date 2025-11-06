@@ -225,6 +225,51 @@ def calc_tx_synthetic_points_pw_2D(steers, ctx, cm, xele, rpw:float=-10):
 
     return ovectx, nvectx, t0tx, doftx, alatx
 
+
+def calc_tx_synthetic_points_2D(steers, ctx, cm, xele, rpw):
+    """Make delay tabs and apodizations for a 2D linear array
+    
+    # Parameters
+    - `steers`: steering angles in radians
+    - `ctx`: assumed speed of spound on transmission in m/s
+    - `cm`: speed of sound in the medium
+    - `xele`: lateral position of the elements in meters
+    - `rpw`: radius to approximate PW in meters
+
+    # Returns
+    - `ovectx`: the origin of the syntehtic point source
+    - `nvectx`: the normal vector of the synthetic point source
+    - `t0tx`: the time intercept of the synthetic point source
+    - `doftx`: the depth of field around the DOF to use linear delay tabs
+    - `alatx`: the angular aceptance reltive to the normal vector
+    """
+
+    import numpy as np
+
+    # Change the angle of the plane waves to do global SOS correction 
+    if cm != ctx: raise NotImplementedError("Speed of sound correction has not yet been implemented for synthetic point datasets")
+
+    # point where the wave first crosses the aperture (set to be t=0)
+    origtx = np.array([[xele[-1] if steer <= 0 else xele[0] for steer in steers], np.zeros(steers.shape)]).T
+
+    # calculate normal vector of point source
+    nvectx = np.array([np.sin(steers), np.cos(steers)]).T
+
+    # calcualte point origins for the sources
+    ovectx = rpw * nvectx
+
+    # calculate the time at which the wave crosses the synthetic point source
+    t0tx = np.sum(nvectx * (ovectx - origtx), axis=-1)/cm
+
+    # depth of field around the point source to consider
+    doftx = np.zeros(len(t0tx), dtype=np.float32)
+
+    # calculate acceptance angle for plane wave source approximated as a point
+    dxo = origtx - ovectx
+    alatx = np.arccos(np.abs(np.sum(dxo * nvectx, axis=-1)) / np.linalg.norm(dxo, axis=-1))
+
+    return ovectx, nvectx, t0tx, doftx, alatx
+
 def make_synthetic_points_2D(steers, r0, ctx, cm, xele, xout, zout, fnum):
     """Make delay tabs and apodizations for a 2D linear array with synthetic sources
     
@@ -254,7 +299,7 @@ def make_synthetic_points_2D(steers, r0, ctx, cm, xele, xout, zout, fnum):
     pvec = np.ascontiguousarray(np.array([Px.flatten(), Pz.flatten()]).T)
 
     if r0 == 0: ovectx, nvectx, t0tx, doftx, alatx = calc_tx_synthetic_points_pw_2D(steers, ctx, cm, xele)
-    else: raise NotImplementedError("Divering and focused synthetic poitn calcualteion has not been implemented yet")
+    else: ovectx, nvectx, t0tx, doftx, alatx = calc_tx_synthetic_points_2D(steers, ctx, cm, xele, r0)
 
     ovecrx, nvecrx, alarx = calc_rx_synthetic_points(xele, fnum)
 
