@@ -395,8 +395,13 @@ extern "C" {
         // if synthetic focal point (diverging or converging waves)
         if (0.0 != ala)
         {
-            if ((dof > 1E-9) && (abs(dxproj) <= dof/2)) {
-                *tau = 2.0*(dxproj/dof)*(dxmag/c0) + t0;
+            // if ((dof > 1E-9) && (abs(dxproj) <= dof/2)) {
+            //     *tau = 2.0*(dxproj/dof)*(dxmag/c0) + t0;
+            //     if (sqrt(abs(dxmag*dxmag - dxproj*dxproj)) <= dof * sin(ala) / 2.0) *apod = 1.0;
+            //     else *apod = 0.0;
+            // }
+            if (dof != 0.0) {
+                *tau = dxproj/c0 + t0;
                 if (sqrt(abs(dxmag*dxmag - dxproj*dxproj)) <= dof * sin(ala) / 2.0) *apod = 1.0;
                 else *apod = 0.0;
             }
