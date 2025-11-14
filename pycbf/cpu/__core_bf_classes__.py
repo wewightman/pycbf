@@ -252,4 +252,4 @@ class TabbedBeamformer(Tabbed, CPUBeamformer):
         return sum(temp, axis=0)
 
     def __del__(self):
-        del __BMFRM_PARAMS__[self.id]
+        if hasattr(self, "id"): del __BMFRM_PARAMS__[self.id]
