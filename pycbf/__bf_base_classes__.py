@@ -212,3 +212,148 @@ class Synthetic():
         self.nrx    = nrx
         self.nop    = nop
         self.ndimp  = ndimp
+
+@dataclass(kw_only=True)
+class GriddedSynthetic():
+    """The `GriddedSynthetic` specific parameters are...
+    - `ovectx`: the origin of the transmit point
+        - an Ntx by 2 or 3 matrix
+    - `nvectx`: the normal vector of the transmit point indicating the direction of wave propagation
+        - Ntx by 2 or 3 matrix
+    - `doftx`: the depth of field around `ovectx` to beamform parallel to `nvectx`
+        - allows for more accurate reconstruction of the physically realistic DOF around a focal point with focused transmits
+        - length Ntx vector
+    - `alatx`: the acceptance angle/directivity of the transmit point relative to `nvectx`
+        - can be used to encode things like F-number for a focused beam or to limit the beamformed FOV based on the projected source through the physical aperture
+        - length Ntx vector
+    - `t0tx`: the time point that the wave passes through `ovectx` relative to the input time trace
+        - length Ntx vector
+    - `ovecrx`: the location of the receive point
+        - Nrx by 2 or 3 matrix
+    - `nvecrx`: the orientation of the receive point
+        - Nrx by 2 or 3 matrix
+    - `alarx`: the acceptance angle/directivity of the receive point
+        - length Nrx vector
+    - `c0`: the assumed speed of sound in the medium.
+    - `gridtype`: string indicating if grid is cartesian or angled ray based - with the last dimension being the axial dimension
+    - `gridapex`: the origin in 2D or 3D cartesian space for the ray based sampling
+    - `gridorig`: the starting point of each grid axis - length 2 or 3
+    - `griddelt`: the spacing along each grid axis - length 2 or 3
+    - `gridnums`: the number of points on each grid axis length 2 or 3
+    """
+    ovectx  : ndarray = field(init=True)    # source point location (ntx by ndim matrix)
+    nvectx  : ndarray = field(init=True)    # normal vector of the source point (ntx by ndim matrix)
+    doftx   : ndarray = field(init=True)    # depth of field over which to use planar delay tabs around ovec (ntx length vector)
+    alatx   : ndarray = field(init=True)    # angular acceptance around nvec (fnumber basically) (ntx length vector)
+    t0tx    : ndarray = field(init=True)    # time the wave front passes through ovectx (ntx length vector)
+
+    ovecrx  : ndarray = field(init=True)    # location of the recieve sensors (nrx by ndim matrix)
+    nvecrx  : ndarray = field(init=True)    # orientation of the recieve sensor (nrx by ndim matrix)
+    alarx   : ndarray = field(init=True)    # acceptance angle of the recieve sensor (nrx length vector)
+    
+    c0 : float = field(init=True)           # media SOS 
+
+    # point grid parameters
+    gridtype : Literal["cartesian", "ray"] = "cartesian"    # type of grid
+    gridapex : ndarray | None = None        # grid apex point - only used for angled-ray based grids
+    gridorig : ndarray = field(init=True)   # origin for each axis of the grid
+    griddelt : ndarray = field(init=True)   # spacing along ray
+    gridnums : ndarray = field(init=True)  # number of points on each axis
+
+    ntx     : int = field(init=False)       # number of transmit events
+    nrx     : int = field(init=False)       # number of recieve events
+    nop     : int = field(init=False)       # number of points to recon
+    ndimp   : int = field(init=False)       # number of spatial dimensions to reconstruct over (2 or 3)
+
+    def __post_init__(self):
+        from numpy import ndim, prod
+
+        if self.gridtype not in ["cartesian", "ray"]:
+            raise BeamformerException(f"'gridtype' argument for a `GriddedSynthetic` beamformer must be 'cartesian' or 'ray' but was {self.gridtype}")
+        if (self.gridtype == "ray") and (self.gridapex is None):
+            raise BeamformerException("For `gridtype='ray'`, parameter 'gridapex' must be defined")
+        nop     = int(prod(self.gridnums))
+        ndimp   = len(self.gridnums)
+
+        # check that all vector inputs are 1D
+        all1d = (ndim(self.doftx) == 1) and (ndim(self.alatx) == 1) and (ndim(self.t0tx) == 1) and (ndim(self.alarx) == 1) and (ndim(self.gridorig) == 1) and (ndim(self.gridnums) == 1) and (ndim(self.griddelt) == 1)
+        if self.gridapex is not None: all1d = all1d and (ndim(self.gridapex) == 1)
+
+        # check that all matrix inputs are 2D
+        all2d = (ndim(self.ovectx) == 2) and (ndim(self.nvectx) == 2) and (ndim(self.ovecrx) == 2) and (ndim(self.nvecrx) == 2)
+
+        # extract dimensions of tx/rx/output point array
+        ntx     = self.ovectx.shape[0]
+        nrx     = self.ovecrx.shape[0]
+
+        # ensure dimensions are consistent
+        alltxdim = (self.nvectx.shape[0] == ntx) and (self.doftx.shape[0] == ntx) and (self.alatx.shape[0] == ntx) and (self.t0tx.shape[0] == ntx)
+        allrxdim = (self.nvecrx.shape[0] == nrx) and (self.alarx.shape[0] == nrx)
+        allndimp = (self.ovectx.shape[1] == ndimp) and (self.nvectx.shape[1] == ndimp) and (self.ovecrx.shape[1] == ndimp) and (self.nvecrx.shape[1] == ndimp) and (len(self.gridorig) == ndimp) and (len(self.griddelt) == ndimp)
+        if self.gridapex is not None: allndimp = allndimp and (len(self.gridapex) == ndimp)
+
+        if not all1d:
+            raise BeamformerException(f"all acceptance angle, depth of field, and t0 vectors must be 1D")
+        if not all2d:
+            raise BeamformerException(f"all origin and normal vector matrices must be 2D where the second dimension is of length 2 or 3")
+        if not alltxdim:
+            raise BeamformerException(f"All tx variables must have the same shape in the first dimension")
+        if not allrxdim:
+            raise BeamformerException(f"All rx variables must have the same shape in the first variable")
+        if not allndimp:
+            raise BeamformerException(f"All spatial dimensions must be the same (all 2D or 3D)")
+        
+        self.ntx    = ntx
+        self.nrx    = nrx
+        self.nop    = nop
+        self.ndimp  = ndimp
+
+@dataclass(kw_only=False)
+class GriddedTabbed(Tabbed):    
+    """The minimum inputs for a `GriddedTabbed` beamformer are the four beamforming tab matrices `tautx`, `taurx`, `apodtx`, and `apodrx` and the grid definition parameters `gridapex`, `gridorig`, `griddelt`, and `gridnums`.
+
+    If `Np` is the number of beamforming points, `Ntx` is the number of transmit events, and `Nrx` is the number of receive events...
+    - `tautx` and `apodtx` both have the shape `Ntx` by `Np`
+    - `taurx` and `apodrx` both have the shape `Nrx` by `Np`
+        - `gridtype`: string indicating if grid is cartesian or angled ray based - with the last dimension being the axial dimension
+    - `gridapex`: the origin in 2D or 3D cartesian space for the ray based sampling
+    - `gridorig`: the starting point of each grid axis - length 2 or 3
+    - `griddelt`: the spacing along each grid axis - length 2 or 3
+    - `gridnums`: the number of points on each grid axis length 2 or 3, and the product of the elements of `gridnums` must be equal to `Np`
+    """
+    # point grid parameters
+    gridtype : Literal["cartesian", "ray"] = "cartesian"    # type of grid
+    gridapex : ndarray | None = None        # grid apex point - only used for angled-ray based grids
+    gridorig : ndarray = field(init=True)   # origin for each axis of the grid
+    griddelt : ndarray = field(init=True)   # spacing along ray
+    gridnums : ndarray = field(init=True)   # number of points on each axis
+
+    ndimp    : int = field(init=False)      # number of spatial dimensions to reconstruct over (2 or 3)
+
+    def __post_init__(self):
+        Tabbed.__post_init__(self)
+
+        from numpy import ndim, prod
+
+        if self.gridtype not in ["cartesian", "ray"]:
+            raise BeamformerException(f"'gridtype' argument for a `GriddedSynthetic` beamformer must be 'cartesian' or 'ray' but was {self.gridtype}")
+        if (self.gridtype == "ray") and (self.gridapex is None):
+            raise BeamformerException("For `gridtype='ray'`, parameter 'gridapex' must be defined")
+        nop     = int(prod(self.gridnums))
+        ndimp   = len(self.gridnums)
+
+        # check that all vector inputs are 1D
+        all1d = (ndim(self.gridorig) == 1) and (ndim(self.gridnums) == 1) and (ndim(self.griddelt) == 1)
+        if self.gridapex is not None: all1d = all1d and (ndim(self.gridapex) == 1)
+
+        # ensure dimensions are consistent
+        allndimp = (len(self.gridorig) == ndimp) and (len(self.griddelt) == ndimp)
+        if self.gridapex is not None: allndimp = allndimp and (len(self.gridapex) == ndimp)
+
+        if not all1d:
+            raise BeamformerException(f"all acceptance angle, depth of field, and t0 vectors must be 1D")
+        if not allndimp:
+            raise BeamformerException(f"All spatial dimensions must be the same (all 2D or 3D)")
+
+        self.nop    = nop
+        self.ndimp  = ndimp
