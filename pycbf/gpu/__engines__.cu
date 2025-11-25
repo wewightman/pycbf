@@ -404,7 +404,7 @@ extern "C" {
                 }
                 // if within the DOF and lateral range, use continuous planar
                 else if (sqrt(abs(dxmag*dxmag - dxproj*dxproj)) < dof * sin(ala) / 2.0) {
-                    *tau = dxproj * sqrt(1 + tan(ala)*tan(ala)) /c0 + t0;
+                    *tau = dxproj * sqrt(1 + tan(ala)*tan(ala)) / c0 + t0;
                     *apod = 1.0;
                 } 
                 // else invalid
@@ -457,7 +457,7 @@ extern "C" {
         if ((dxmag != 0.0) && (acos(dxproj/dxmag) > ala)) *apod = 0.0;
         else *apod = 1.0;
     }
-
+    
     /**
      * ddas_bmode_synthetic_korder_cubic: beamform a DAS bmode using a synthetic point approach and korder cubic interpolation
      * 
