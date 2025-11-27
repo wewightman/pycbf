@@ -1,6 +1,14 @@
 extern "C" {
 
     /**
+     * parameters determining thresholds
+     * __PYCBF_GPU_APOD_THRESH__ - minimum combined apodization value
+     * __PYCBF_GPU_DX_MIN__      - minimum distance to not round dx to zero with synthetic points
+     */
+    #define __PYCBF_GPU_APOD_THRESH__   0.01
+    #define __PYCBF_GPU_DX_MIN__        1E-12
+
+    /**
      * nearest_interp: nearest neighbor interpolation
      */
     float nearest_interp(
@@ -398,7 +406,7 @@ extern "C" {
         {
             if (dof != 0.0) {
                 // if within the hour glass, use spherical delay tabs
-                if (acos(abs(dxproj/dxmag)) <= ala) {
+                if ((abs(dxproj) > __PYCBF_GPU_DX_MIN__) && (abs(dxmag) > __PYCBF_GPU_DX_MIN__) && (acos(abs(dxproj/dxmag)) <= ala)) {
                     *tau = (dxproj/abs(dxproj)) * (dxmag/c0) + t0;
                     *apod = 1.0;
                 }
@@ -411,9 +419,9 @@ extern "C" {
                 else *apod = 0.0;
             }
             else {
-                if (abs(dxproj) > 1E-12) *tau = (dxproj/abs(dxproj)) * (dxmag/c0) + t0;
+                if (abs(dxproj) > __PYCBF_GPU_DX_MIN__) *tau = (dxproj/abs(dxproj)) * (dxmag/c0) + t0;
                 else *tau = t0;
-                if ((abs(dxmag) > 1E-12) && (acos(abs(dxproj/dxmag)) > ala)) *apod = 0.0;
+                if ((abs(dxmag) > __PYCBF_GPU_DX_MIN__) && (acos(abs(dxproj/dxmag)) > ala)) *apod = 0.0;
                 else *apod = 1.0;
             }
         }
@@ -454,7 +462,7 @@ extern "C" {
 
         // calculate receive delay tabs and apodization
         *tau = dxmag/c0;
-        if ((dxmag != 0.0) && (acos(dxproj/dxmag) > ala)) *apod = 0.0;
+        if ((abs(dxmag) > __PYCBF_GPU_DX_MIN__) && (acos(dxproj/dxmag) > ala)) *apod = 0.0;
         else *apod = 1.0;
     }
     
@@ -541,7 +549,7 @@ extern "C" {
         );
 
         // If valid, add the beamformed and apodized value
-        if (0 != apodtx * apodrx)
+        if (abs(apodtx * apodrx) > __PYCBF_GPU_APOD_THRESH__)
         {
             // calculate the index to save to based on the flag
             if      (0 == flag) ipout = ip + np*(irx + itx*rfinfo.nrx);
@@ -648,7 +656,7 @@ extern "C" {
         );
 
         // If valid, add the beamformed and apodized value
-        if (0 != apodtx * apodrx)
+        if (abs(apodtx * apodrx) > __PYCBF_GPU_APOD_THRESH__)
         {
             // calculate the index to save to based on the flag
             if      (0 == flag) ipout = ip + np*(irx + itx*rfinfo.nrx);
@@ -725,7 +733,7 @@ extern "C" {
         ip  = tid % np; 
 
         // If valid, add the beamformed and apodized value
-        if (0 != apodtx[itx*np + ip] * apodrx[irx*np + ip])
+        if (abs(apodtx[itx*np + ip] * apodrx[irx*np + ip]) > __PYCBF_GPU_APOD_THRESH__)
         {
             // calculate the index to save to based on the flag
             if      (0 == flag) ipout = ip + np*(irx + itx*rfinfo.nrx);
@@ -805,7 +813,7 @@ extern "C" {
         ip  = tid % np; 
 
         // If valid, add the beamformed and apodized value
-        if (0 != apodtx[itx*np + ip] * apodrx[irx*np + ip])
+        if (abs(apodtx[itx*np + ip] * apodrx[irx*np + ip]) > __PYCBF_GPU_APOD_THRESH__)
         {
             // calculate the index to save to based on the flag
             if      (0 == flag) ipout = ip + np*(irx + itx*rfinfo.nrx);
