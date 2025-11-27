@@ -1,6 +1,6 @@
 import cupy as cp
 import numpy as np
-from pycbf.__bf_base_classes__ import BeamformerException
+from pycbf.__bf_base_classes__ import BeamformerException, __PYCBF_DATATYPE__
 import os
 
 if not cp.cuda.is_available(): raise BeamformerException("Unable to find a CUDA compatible device")
@@ -10,7 +10,7 @@ __base_eng_path__ = os.path.join(os.path.dirname(__file__), "__engines__.cu")
 with open(__base_eng_path__, mode='r') as fp: raw_module = fp.read()
 __base_eng__ = cp.RawModule(code=raw_module)
 
-xInfo = np.dtype([('x0', np.float32),('dx', np.float32),('nx', np.int32)])
+xInfo = np.dtype([('x0', __PYCBF_DATATYPE__),('dx', __PYCBF_DATATYPE__),('nx', np.int32)])
 RFInfo = np.dtype([('ntx', np.int64),('nrx', np.int64),('ndim', np.int32),('tInfo', xInfo)])
 
 das_bmode_synthetic_korder_cubic = __base_eng__.get_function("das_bmode_synthetic_korder_cubic")

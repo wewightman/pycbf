@@ -8,16 +8,19 @@ extern "C" {
     #define __PYCBF_GPU_APOD_THRESH__   0.01
     #define __PYCBF_GPU_DX_MIN__        1E-12
 
+    // use a typdef to generalize the floating point type
+    typedef float datatype;
+
     /**
      * nearest_interp: nearest neighbor interpolation
      */
-    float nearest_interp(
-        const float x0,     // starting position of the regularly spaced coordinate vector
-        const float dx,     // spacing of the coordinate vector
+    datatype nearest_interp(
+        const datatype x0,  // starting position of the regularly spaced coordinate vector
+        const datatype dx,  // spacing of the coordinate vector
         const int nx,       // number of points in the coordinate vector
-        const float* y,     // values of of the function sampled on x
-        float xout,         // coordintate to interpolate at
-        float fill          // value to fill if out of bounds
+        const datatype* y,  // values of of the function sampled on x
+        datatype xout,      // coordintate to interpolate at
+        datatype fill       // value to fill if out of bounds
     ) 
     {
         int ixo = (int) ((xout - x0)/dx + 0.5f);
@@ -30,13 +33,13 @@ extern "C" {
     /**
      * linear_interp: linear interpolation
      */
-    float linear_interp(
-        const float x0,     // starting position of the regularly spaced coordinate vector
-        const float dx,     // spacing of the coordinate vector
+    datatype linear_interp(
+        const datatype x0,  // starting position of the regularly spaced coordinate vector
+        const datatype dx,  // spacing of the coordinate vector
         const int nx,       // number of points in the coordinate vector
-        const float* y,     // values of of the function sampled on x
-        float xout,         // coordintate to interpolate at
-        float fill          // value to fill if out of bounds
+        const datatype* y,  // values of of the function sampled on x
+        datatype xout,      // coordintate to interpolate at
+        datatype fill       // value to fill if out of bounds
     ) 
     {
         int ixo = (int) ((xout - x0)/dx);
@@ -45,23 +48,23 @@ extern "C" {
 
         if ((ixo < 0) || (ixo >= nx)) return fill;
         
-        float frac = (xout - ixo * dx - x0)/dx;
+        datatype frac = (xout - ixo * dx - x0)/dx;
         return y[ixo] * (1.0f - frac) + y[ixo] * frac;
     }
 
     /**
      * makima_interp: cubeic interpolation assuming regular spacing using the makima method
      */
-    float makima_interp(
-        const float x0,     // starting position of the regularly spaced coordinate vector
-        const float dx,     // spacing of the coordinate vector
+    datatype makima_interp(
+        const datatype x0,  // starting position of the regularly spaced coordinate vector
+        const datatype dx,  // spacing of the coordinate vector
         const int nx,       // number of points in the coordinate vector
-        const float* y,     // values of of the function sampled on x
-        float xout,         // coordintate to interpolate at
-        float fill          // value to fill if out of bounds
+        const datatype* y,  // values of of the function sampled on x
+        datatype xout,      // coordintate to interpolate at
+        datatype fill       // value to fill if out of bounds
     ) 
     {
-        float xn = x0 + dx * (nx-1);
+        datatype xn = x0 + dx * (nx-1);
         
         // boundary condition (bc) - exactly last sampled point
         if (xout == xn) return y[nx-1];
@@ -70,7 +73,7 @@ extern "C" {
         else if ((xout < x0) || (xout > xn)) return fill;
                                 
         int ixo = (int) ((xout - x0)/dx);
-        float mm2, mm1, mp0, mp1, mp2, w0, w1, sp0, sp1, a, b, c, d, delta;
+        datatype mm2, mm1, mp0, mp1, mp2, w0, w1, sp0, sp1, a, b, c, d, delta;
 
         // bc - first point
         if (ixo == 0) {
@@ -160,16 +163,16 @@ extern "C" {
     /**
      * akima_interp: cubic interpolation assuming regular spacing using the akima method
      */
-    float akima_interp(
-        const float x0,     // starting position of the regularly spaced coordinate vector
-        const float dx,     // spacing of the coordinate vector
+    datatype akima_interp(
+        const datatype x0,  // starting position of the regularly spaced coordinate vector
+        const datatype dx,  // spacing of the coordinate vector
         const int nx,       // number of points in the coordinate vector
-        const float* y,     // values of of the function sampled on x
-        float xout,         // coordintate to interpolate at
-        float fill          // value to fill if out of bounds
+        const datatype* y,  // values of of the function sampled on x
+        datatype xout,      // coordintate to interpolate at
+        datatype fill       // value to fill if out of bounds
     ) 
     {
-        float xn = x0 + dx * (nx-1);
+        datatype xn = x0 + dx * (nx-1);
         
         // boundary condition (bc) - exactly last sampled point
         if (xout == xn) return y[nx-1];
@@ -178,7 +181,7 @@ extern "C" {
         else if ((xout < x0) || (xout > xn)) return fill;
                                 
         int ixo = (int) ((xout- x0)/dx);
-        float mm2, mm1, mp0, mp1, mp2, w0, w1, sp0, sp1, a, b, c, d, delta;
+        datatype mm2, mm1, mp0, mp1, mp2, w0, w1, sp0, sp1, a, b, c, d, delta;
 
         // bc - first point
         if (ixo == 0) {
@@ -265,13 +268,13 @@ extern "C" {
         return a + b * delta + c * delta * delta + d * delta * delta * delta;
     }
 
-    float (*jumpTable[])(
-        const float x0,     // starting position of the regularly spaced coordinate vector
-        const float dx,     // spacing of the coordinate vector
+    datatype (*jumpTable[])(
+        const datatype x0,     // starting position of the regularly spaced coordinate vector
+        const datatype dx,     // spacing of the coordinate vector
         const int nx,       // number of points in the coordinate vector
-        const float* y,     // values of of the function sampled on x
-        float xout,         // coordintate to interpolate at
-        float fill          // value to fill if out of bounds
+        const datatype* y,     // values of of the function sampled on x
+        datatype xout,         // coordintate to interpolate at
+        datatype fill          // value to fill if out of bounds
     ) = {
         nearest_interp,
         linear_interp,
@@ -286,18 +289,18 @@ extern "C" {
      * 
      * [1] S. K. Præsius and J. Arendt Jensen, “Fast Spline Interpolation using GPU Acceleration,” in 2024 IEEE Ultrasonics, Ferroelectrics, and Frequency Control Joint Symposium (UFFC-JS), Sep. 2024, pp. 1–5. doi: 10.1109/UFFC-JS60046.2024.10793976.
      */
-    float korder_cubic_interp(
-        const float x0,     // starting position of the regularly spaced coordinate vector
-        const float dx,     // spacing of the coordinate vector
+    datatype korder_cubic_interp(
+        const datatype x0,     // starting position of the regularly spaced coordinate vector
+        const datatype dx,     // spacing of the coordinate vector
         const int nx,       // number of points in the coordinate vector
-        const float* y,     // values of of the function sampled on x
-        const float* S,     // a matrix containing values to calcualte the derivatives of y
+        const datatype* y,     // values of of the function sampled on x
+        const datatype* S,     // a matrix containing values to calcualte the derivatives of y
         const int k,        // the length of the kernel and size of S is k by k
-        float xout,         // coordintate to interpolate at
-        float fill          // value to fill if out of bounds
+        datatype xout,         // coordintate to interpolate at
+        datatype fill          // value to fill if out of bounds
     ) 
     {
-        float y0, y1, yp0, yp1, xmax, xnorm, a0, a1, a2, a3;
+        datatype y0, y1, yp0, yp1, xmax, xnorm, a0, a1, a2, a3;
         int ixin, ik0, iy0, i;
 
         ixin = (xout - x0)/dx;
@@ -355,8 +358,8 @@ extern "C" {
      * xInfo: struct defining the bounds and spacing of a regularly spaced array
      */
     struct xInfo {
-        float x0;   // the starting point of the vector
-        float dx;   // the spacing between points
+        datatype x0;   // the starting point of the vector
+        datatype dx;   // the spacing between points
         int nx;     // the number of points in the vector
     };
 
@@ -378,19 +381,19 @@ extern "C" {
      */
     void calc_tautx_apodtx(
         const int    ndim,  // 2 or 3 dimensions
-        const float*  foc,  // focal spot
-        const float* nvec,  // normal vector of wave propagation
-        const float    c0,  // assumed speed of sound in media
-        const float    t0,  // the time at which the wave reaches foc
-        const float   ala,  // the acceptance angle relative to nvec - zero for plane wave
-        const float   dof,  // the dof around foc over which to "flatten" the delay tabs
-        const float* pvec,  // the point at which we are calculating delay tabs and apodization
-        float* tau, float* apod // output numbers
+        const datatype*  foc,  // focal spot
+        const datatype* nvec,  // normal vector of wave propagation
+        const datatype    c0,  // assumed speed of sound in media
+        const datatype    t0,  // the time at which the wave reaches foc
+        const datatype   ala,  // the acceptance angle relative to nvec - zero for plane wave
+        const datatype   dof,  // the dof around foc over which to "flatten" the delay tabs
+        const datatype* pvec,  // the point at which we are calculating delay tabs and apodization
+        datatype* tau, datatype* apod // output numbers
     )
     {
         
         // calculate the magnitude of dx and its projection onto nvec
-        float dxi, dxmag, dxproj;
+        datatype dxi, dxmag, dxproj;
         dxmag  = 0.0;
         dxproj = 0.0;
         for (int idim = 0; idim < ndim; ++idim)
@@ -440,16 +443,16 @@ extern "C" {
      */
     void calc_taurx_apodrx(
         const int    ndim,  // 2 or 3 dimensions
-        const float* orig,  // origin of receive element
-        const float* nvec,  // normal vector of wave propagation
-        const float    c0,  // assumed speed of sound in media
-        const float   ala,  // the acceptance angle relative to nvec - zero for plane wave
-        const float* pvec,  // the point at which we are calculating delay tabs and apodization
-        float* tau, float* apod // output numbers
+        const datatype* orig,  // origin of receive element
+        const datatype* nvec,  // normal vector of wave propagation
+        const datatype    c0,  // assumed speed of sound in media
+        const datatype   ala,  // the acceptance angle relative to nvec - zero for plane wave
+        const datatype* pvec,  // the point at which we are calculating delay tabs and apodization
+        datatype* tau,datatype* apod // output numbers
     )
     {
         // calculate the magnitude of dx and its projection onto nvec
-        float dxi, dxmag, dxproj;
+        datatype dxi, dxmag, dxproj;
         dxmag  = 0.0;
         dxproj = 0.0;
         for (int idim = 0; idim < ndim; ++idim)
@@ -501,16 +504,16 @@ extern "C" {
      */
     __global__ 
     void das_bmode_synthetic_korder_cubic(
-        const struct RFInfo rfinfo, const float* rfdata, 
-        const float* ovectx, const float* nvectx, const float* t0tx, const float* alatx, const float* doftx, 
-        const float* ovecrx, const float* nvecrx, const float* alarx,
-        const float k, const float* S,
-        const float c0, const long long np, const float* pvec, float* pout,
+        const struct RFInfo rfinfo, const datatype* rfdata, 
+        const datatype* ovectx, const datatype* nvectx, const datatype* t0tx, const datatype* alatx, const datatype* doftx, 
+        const datatype* ovecrx, const datatype* nvecrx, const datatype* alarx,
+        const datatype k, const datatype* S,
+        const datatype c0, const long long np, const datatype* pvec, datatype* pout,
         const int flag
     )
     {
         long long tpb, bpg, tid, itx, irx, ip, ipout;
-        float tautx, apodtx, taurx, apodrx;
+        datatype tautx, apodtx, taurx, apodrx;
 
         // get cuda step sizes
         tpb = blockDim.x * blockDim.y * blockDim.z; // threads per block
@@ -608,16 +611,16 @@ extern "C" {
      */
     __global__ 
     void das_bmode_synthetic_multi_interp(
-        const struct RFInfo rfinfo, const float* rfdata, 
-        const float* ovectx, const float* nvectx, const float* t0tx, const float* alatx, const float* doftx, 
-        const float* ovecrx, const float* nvecrx, const float* alarx,
+        const struct RFInfo rfinfo, const datatype* rfdata, 
+        const datatype* ovectx, const datatype* nvectx, const datatype* t0tx, const datatype* alatx, const datatype* doftx, 
+        const datatype* ovecrx, const datatype* nvecrx, const datatype* alarx,
         const int interp_flag,
-        const float c0, const long long np, const float* pvec, float* pout,
+        const datatype c0, const long long np, const datatype* pvec, datatype* pout,
         const int flag
     )
     {
         long long tpb, bpg, tid, itx, irx, ip, ipout;
-        float tautx, apodtx, taurx, apodrx;
+        datatype tautx, apodtx, taurx, apodrx;
 
         // get cuda step sizes
         tpb = blockDim.x * blockDim.y * blockDim.z; // threads per block
@@ -707,11 +710,11 @@ extern "C" {
      */
     __global__ 
     void das_bmode_tabbed_korder_cubic(
-        const struct RFInfo rfinfo, const float* rfdata, 
-        const float* tautx, const float* apodtx,
-        const float* taurx, const float* apodrx,
-        const int k, const float* S,
-        const long long np, float* pout, 
+        const struct RFInfo rfinfo, const datatype* rfdata, 
+        const datatype* tautx, const datatype* apodtx,
+        const datatype* taurx, const datatype* apodrx,
+        const int k, const datatype* S,
+        const long long np, datatype* pout, 
         const int flag
     )
     {
@@ -787,11 +790,11 @@ extern "C" {
      */
     __global__ 
     void das_bmode_tabbed_multi_interp(
-        const struct RFInfo rfinfo, const float* rfdata, 
-        const float* tautx, const float* apodtx,
-        const float* taurx, const float* apodrx,
+        const struct RFInfo rfinfo, const datatype* rfdata, 
+        const datatype* tautx, const datatype* apodtx,
+        const datatype* taurx, const datatype* apodrx,
         const int interp_flag,
-        const long long np, float* pout, 
+        const long long np, datatype* pout, 
         const int flag
     )
     {

@@ -1,12 +1,14 @@
 """Basic beamforming base classes to build all specific beamforming classes from. Specific implementation details can be found in the hardware-specific modules `pycbf.cpu` and `pycbf.gpu`"""
 from dataclasses import dataclass, field
 from typing import ClassVar, Literal
-from numpy import ndarray
+from numpy import ndarray, float32, float64
 import logging
 logger = logging.getLogger(__name__)
 
 global __BMFRM_PARAMS__
 __BMFRM_PARAMS__ = {}
+
+__PYCBF_DATATYPE__ = float32 # float32 or float64
 
 class BeamformerException(Exception): pass
 
