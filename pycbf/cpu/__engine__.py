@@ -4,6 +4,7 @@ import numpy as np
 from glob import glob
 import platform as _pltfm
 import os
+from pycbf.__bf_base_classes__ import __PYCBF_DATATYPE__
 
 import logging
 logger = logging.getLogger(__name__)
@@ -12,7 +13,14 @@ logger.setLevel(logging.DEBUG)
 # determine installed path
 dirpath = os.path.dirname(__file__)
 
-matptr = ct.POINTER(ct.POINTER(ct.c_float))
+if type(__PYCBF_DATATYPE__) == type(np.float32):
+    __pycbf_ctype__ = ct.c_float
+    __pycbf_pnt__   = ct.POINTER(__pycbf_ctype__)
+elif type(__PYCBF_DATATYPE__) == type(np.float64):
+    __pycbf_ctype__ = ct.c_double
+    __pycbf_pnt__   = ct.POINTER(__pycbf_ctype__)
+else:
+    raise Exception("Unknown dtype used for pycbf datatype")
 
 # determine the OS and relative binary file
 if _pltfm.uname()[0] == "Windows":
@@ -29,33 +37,33 @@ else:
 __cpu_pycbf__ = ct.CDLL(name)
 
 __cpu_pycbf__.beamform_cubic.argtypes = (
-    ct.c_float, 
-    ct.c_float, 
+    __pycbf_ctype__, 
+    __pycbf_ctype__, 
     ct.c_int, 
-    ct.POINTER(ct.c_float), 
+    __pycbf_pnt__, 
     ct.c_int, 
-    ct.c_float,
-    ct.POINTER(ct.c_float), 
-    ct.POINTER(ct.c_float), 
-    ct.POINTER(ct.c_float), 
-    ct.POINTER(ct.c_float), 
-    ct.POINTER(ct.c_float)
+    __pycbf_ctype__,
+    __pycbf_pnt__, 
+    __pycbf_pnt__, 
+    __pycbf_pnt__, 
+    __pycbf_pnt__, 
+    __pycbf_pnt__
 )
 __cpu_pycbf__.beamform_cubic.restype = (None)
 __cpu_pycbf__.beamform_cubic.__doc__ = """beamform an aline's worth of data using cubic interpolation for each pixel"""
 
 __cpu_pycbf__.beamform_nearest.argtypes = (
-    ct.c_float, 
-    ct.c_float, 
+    __pycbf_ctype__, 
+    __pycbf_ctype__, 
     ct.c_int, 
-    ct.POINTER(ct.c_float), 
+    __pycbf_pnt__, 
     ct.c_int, 
-    ct.c_float,
-    ct.POINTER(ct.c_float), 
-    ct.POINTER(ct.c_float), 
-    ct.POINTER(ct.c_float), 
-    ct.POINTER(ct.c_float), 
-    ct.POINTER(ct.c_float),
+    __pycbf_ctype__,
+    __pycbf_pnt__, 
+    __pycbf_pnt__, 
+    __pycbf_pnt__, 
+    __pycbf_pnt__, 
+    __pycbf_pnt__,
     ct.c_int
 )
 __cpu_pycbf__.beamform_nearest.restype = (None)
