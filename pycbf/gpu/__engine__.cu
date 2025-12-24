@@ -534,9 +534,9 @@ extern "C" {
         if (0 != apodtx * apodrx)
         {
             // calculate the index to save to based on the flag
-            if      (0 == flag) ipout = ip + np*itx*irx;
-            else if (1 == flag) ipout = ip + np*itx;
-            else if (2 == flag) ipout = ip + np*irx;
+            if      (0 == flag) ipout = ip + np*(irx + itx*rfinfo.nrx);
+            else if (1 == flag) ipout = ip + np*irx;
+            else if (2 == flag) ipout = ip + np*itx;
             else                ipout = ip;
 
             // interpolate and add interpolated value to ipout
@@ -641,9 +641,9 @@ extern "C" {
         if (0 != apodtx * apodrx)
         {
             // calculate the index to save to based on the flag
-            if      (0 == flag) ipout = ip + np*itx*irx;
-            else if (1 == flag) ipout = ip + np*itx;
-            else if (2 == flag) ipout = ip + np*irx;
+            if      (0 == flag) ipout = ip + np*(irx + itx*rfinfo.nrx);
+            else if (1 == flag) ipout = ip + np*irx;
+            else if (2 == flag) ipout = ip + np*itx;
             else                ipout = ip;
 
             // interpolate and add interpolated value to ipout
@@ -718,7 +718,7 @@ extern "C" {
         if (0 != apodtx[itx*np + ip] * apodrx[irx*np + ip])
         {
             // calculate the index to save to based on the flag
-            if      (0 == flag) ipout = ip + np*irx + np*itx*rfinfo.nrx;
+            if      (0 == flag) ipout = ip + np*(irx + itx*rfinfo.nrx);
             else if (1 == flag) ipout = ip + np*irx;
             else if (2 == flag) ipout = ip + np*itx;
             else                ipout = ip;
@@ -798,7 +798,7 @@ extern "C" {
         if (0 != apodtx[itx*np + ip] * apodrx[irx*np + ip])
         {
             // calculate the index to save to based on the flag
-            if      (0 == flag) ipout = ip + np*itx*irx;
+            if      (0 == flag) ipout = ip + np*(irx + itx*rfinfo.nrx);
             else if (1 == flag) ipout = ip + np*irx;
             else if (2 == flag) ipout = ip + np*itx;
             else                ipout = ip;
