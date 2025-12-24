@@ -117,11 +117,37 @@ extern "C" {
         return a + b * delta + c * delta * delta + d * delta * delta * delta;
     }
 
-    __global__ void my_cubeterp(const float x0, const float dx, const int nx, const float* y, const float* xout, const int nxout, float* yout, float fill) 
+    struct xInfo {
+        float x0;
+        float dx;
+        int nx;
+    };
+
+    __global__ void my_cubeterp(const struct xInfo xinfo, const float* y, const float* xout, const int nxout, float* yout, float fill) 
     {
         int tid = blockDim.x * blockIdx.x + threadIdx.x;
         if (tid >= nxout) return;
                                 
-        yout[tid] = cube_interp(x0, dx, nx, y, xout[tid], 0.0);
+        yout[tid] = cube_interp(xinfo.x0, xinfo.dx, xinfo.nx, y, xout[tid], 0.0);
+    }
+
+    __global__ void copy_struct(const struct xInfo xinfo, float* yout)
+    {
+        yout[0] = xinfo.x0;
+        yout[1] = xinfo.dx;
+        yout[2] = (float) xinfo.nx;
+    }
+
+    struct RFInfo {
+        int ntx;
+        int nrx;
+        int np;
+        int ndim;
+        struct xInfo tInfo;
+    };
+
+    __global__ void beamform(const struct RFInfo rfinfo, const float* rfdata, )
+    {
+
     }
 }
