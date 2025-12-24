@@ -4,7 +4,7 @@
  * fillarr
  * fill a given vector with a given filvalue
  */
-void fillarr(int N, float *vec, float fillval) {
+void fillarr(int N, pycbf_datatype *vec, pycbf_datatype fillval) {
     for (int i = 0; i < N; ++i) {
         vec[i] = fillval;
     }
@@ -18,11 +18,11 @@ void fillarr(int N, float *vec, float fillval) {
  * xref, yref, zref: (x, y, z) coordinate of reference point [m]
  * xfield, yfield, zfield: pointers to length N arrays of (x, y, z) coordinates in field
  */
-void rxengine(int N, float c, float * ref, float * points, float *tau) {
+void rxengine(int N, pycbf_datatype c, pycbf_datatype * ref, pycbf_datatype * points, pycbf_datatype *tau) {
     // define the output array of tau
-    float xdiff;
-    float ydiff;
-    float zdiff;
+    pycbf_datatype xdiff;
+    pycbf_datatype ydiff;
+    pycbf_datatype zdiff;
 
     // iterate through each point
     for(int i = 0; i < N; ++i) {
@@ -43,11 +43,11 @@ void rxengine(int N, float c, float * ref, float * points, float *tau) {
  * norm: (x, y, z) normal vector
  * xfield, nx, yfield, ny, zfield, nz: pointers to length N arrays of (x, y, z) coordinates in field
  */
-void pwtxengine(int N, float c, float tref, float *ref, float *norm, float *points, float *tau) {
+void pwtxengine(int N, pycbf_datatype c, pycbf_datatype tref, pycbf_datatype *ref, pycbf_datatype *norm, pycbf_datatype *points, pycbf_datatype *tau) {
     // iterate through each point
-    float xdiff;
-    float ydiff;
-    float zdiff;
+    pycbf_datatype xdiff;
+    pycbf_datatype ydiff;
+    pycbf_datatype zdiff;
 
     for(int i = 0; i < N; ++i) {
         xdiff = norm[0] * (points[3*i+0] - ref[0]);
@@ -58,11 +58,11 @@ void pwtxengine(int N, float c, float tref, float *ref, float *norm, float *poin
     }
 }
 
-void genmask3D(int N, float fmaj, int dynmaj, float fmin, int dynmin, float * n, float *focus, float *ref, float *points, int *mask) {
-    float nmaj[3] = {n[0], n[1], 0.0f};
-    float nmin[3] = {n[1], -n[0], 0.0f};
-    float rmaj;
-    float rmin;
+void genmask3D(int N, pycbf_datatype fmaj, int dynmaj, pycbf_datatype fmin, int dynmin, pycbf_datatype * n, pycbf_datatype *focus, pycbf_datatype *ref, pycbf_datatype *points, int *mask) {
+    pycbf_datatype nmaj[3] = {n[0], n[1], 0.0f};
+    pycbf_datatype nmin[3] = {n[1], -n[0], 0.0f};
+    pycbf_datatype rmaj;
+    pycbf_datatype rmin;
     int inmaj;
     int inmin;
 
@@ -97,7 +97,7 @@ void genmask3D(int N, float fmaj, int dynmaj, float fmin, int dynmin, float * n,
  * sumvecs:
  * sum vec1, vec2, and a given constant value
  */
-void sumvecs(int N, float *vec1, float *vec2, float v0, float *summed) {
+void sumvecs(int N, pycbf_datatype *vec1, pycbf_datatype *vec2, pycbf_datatype v0, pycbf_datatype *summed) {
     for (int i = 0; i < N; ++i) {
         summed[i] = vec1[i] + vec2[i] + v0;
     }
@@ -108,7 +108,7 @@ void sumvecs(int N, float *vec1, float *vec2, float v0, float *summed) {
  * returns an Ntau length array of integer indices with values ranging from [-1, Ntrace)
  * A value of -1 indicates an array index out of bounds or a masked out value
  */
-void calcindices(int Ntau, int Ntrace, float tstart, float fs, float * tau, int *mask, int * tind) {
+void calcindices(int Ntau, int Ntrace, pycbf_datatype tstart, pycbf_datatype fs, pycbf_datatype * tau, int *mask, int * tind) {
     int index;
 
     for (int i = 0; i < Ntau; ++i) {
@@ -129,7 +129,7 @@ void calcindices(int Ntau, int Ntrace, float tstart, float fs, float * tau, int 
  * selectdata
  * reads rawdata from a given pointer for entires dataset
 */
-void selectdata(int Ntind, int *tind, float *data, float *dataout) {
+void selectdata(int Ntind, int *tind, pycbf_datatype *data, pycbf_datatype *dataout) {
     int itind;
     for (int i = 0; i < Ntind; ++i) {
         itind = tind[i];
@@ -147,7 +147,7 @@ void selectdata(int Ntind, int *tind, float *data, float *dataout) {
  * orig - pointer to large, original array
  * sub - pointer to buffer to store Nsmall elements
  */
-void copysubvec(int Norig, int Nsub, int index, float *orig, float *sub) {
+void copysubvec(int Norig, int Nsub, int index, pycbf_datatype *orig, pycbf_datatype *sub) {
     for (int i = 0; (i < Nsub) && (Nsub*index+i < Norig); ++i) {
         sub[i] = orig[Nsub*index+i];
     }
@@ -156,7 +156,7 @@ void copysubvec(int Norig, int Nsub, int index, float *orig, float *sub) {
 /**
  * 
  */
-void printifa(int i, float f, float * a, int na) {
+void printifa(int i, pycbf_datatype f, pycbf_datatype * a, int na) {
     printf("%p \n", a);
     printf("%d, %0.03f, [", i, f);
     for (int icount = 0; icount < na; ++icount) {
@@ -176,18 +176,18 @@ void printifa(int i, float f, float * a, int na) {
  *  Nin:    number of input coordinates
  *  knots:  knot structure with interpolation parameters
 */
-float * cubic1D_fixed(float * xin, int Nin, IntrpData1D_Fixed * knots) 
+pycbf_datatype * cubic1D_fixed(pycbf_datatype * xin, int Nin, IntrpData1D_Fixed * knots) 
 {
     // loop variables and return buffer
-    float x, a, b, c, d, xlead, xlag;
+    pycbf_datatype x, a, b, c, d, xlead, xlag;
     int j;
 
-    float * y = (float *) malloc(sizeof(float) * Nin);
+    pycbf_datatype * y = (pycbf_datatype *) malloc(sizeof(pycbf_datatype) * Nin);
 
     // procedurally define bounds
-    float dx = knots->dx;
-    float xmin = knots->xstart;
-    float xmax = xmin + dx * (float)((knots->N) - 1);
+    pycbf_datatype dx = knots->dx;
+    pycbf_datatype xmin = knots->xstart;
+    pycbf_datatype xmax = xmin + dx * (pycbf_datatype)((knots->N) - 1);
 
     for(int i=0; i<Nin; ++i) 
     {
@@ -230,16 +230,16 @@ float * cubic1D_fixed(float * xin, int Nin, IntrpData1D_Fixed * knots)
  *  xin:    pointer to vector of intperpolation coordinates
  *  knots:  knot structure with interpolation parameters
 */
-float cubic1D_fixed_point(float xin, IntrpData1D_Fixed * knots) 
+pycbf_datatype cubic1D_fixed_point(pycbf_datatype xin, IntrpData1D_Fixed * knots) 
 {
     // loop variables and return buffer
-    float x, a, b, c, d, xlead, xlag;
+    pycbf_datatype x, a, b, c, d, xlead, xlag;
     int j;
 
     // procedurally define bounds
-    float dx = knots->dx;
-    float xmin = knots->xstart;
-    float xmax = xmin + dx * (float)((knots->N) - 1);
+    pycbf_datatype dx = knots->dx;
+    pycbf_datatype xmin = knots->xstart;
+    pycbf_datatype xmax = xmin + dx * (pycbf_datatype)((knots->N) - 1);
 
 
     x = xin;                    // extract interpolation point
@@ -276,12 +276,12 @@ float cubic1D_fixed_point(float xin, IntrpData1D_Fixed * knots)
  * Comments are to the writer's knowledge
  * Wren Wightman, github:@wewightman, 2023
 */
-IntrpData1D_Fixed * tie_knots1D_fixed(float * y, int N, float dx, float xstart, float fill, int ycopy) {
+IntrpData1D_Fixed * tie_knots1D_fixed(pycbf_datatype * y, int N, pycbf_datatype dx, pycbf_datatype xstart, pycbf_datatype fill, int ycopy) {
     // generate loop variables and buffers
-    float * y2 = (float *) malloc(sizeof(float) * N);
-    float * u  = (float *) malloc(sizeof(float) * N);
+    pycbf_datatype * y2 = (pycbf_datatype *) malloc(sizeof(pycbf_datatype) * N);
+    pycbf_datatype * u  = (pycbf_datatype *) malloc(sizeof(pycbf_datatype) * N);
 
-    float sig, p;
+    pycbf_datatype sig, p;
 
     // set y'' = 0 boundary condition
     y2[0] = 0.0f;
@@ -318,7 +318,7 @@ IntrpData1D_Fixed * tie_knots1D_fixed(float * y, int N, float dx, float xstart, 
     // make a deep copy of y if requested, otherwise, save reference to input y
     if (ycopy)
     {
-        float * ytilde = (float *) malloc(sizeof(float) * N);
+        pycbf_datatype * ytilde = (pycbf_datatype *) malloc(sizeof(pycbf_datatype) * N);
         for(int i = 0; i < N; ++i) ytilde[i] = y[i];
         knots->y = ytilde;
     }
@@ -342,24 +342,24 @@ void free_IntrpData1D_Fixed(IntrpData1D_Fixed * knots)
 }
 
 void beamform_cubic(
-    float t0,
-    float dt,
+    pycbf_datatype t0,
+    pycbf_datatype dt,
     int nt,
-    float * sig,
+    pycbf_datatype * sig,
     int nout,
-    float thresh,
-    float * tautx,
-    float * apodtx,
-    float * taurx,
-    float * apodrx,
-    float * out
+    pycbf_datatype thresh,
+    pycbf_datatype * tautx,
+    pycbf_datatype * apodtx,
+    pycbf_datatype * taurx,
+    pycbf_datatype * apodrx,
+    pycbf_datatype * out
 ) 
 {
     // make the interpolator for the input signal
     IntrpData1D_Fixed * knots = tie_knots1D_fixed(sig, nt, dt, t0, 0.0f, 1);
 
     // apply apodization and sum with current output vector
-    float apod;
+    pycbf_datatype apod;
     for(int i=0; i<nout; ++i) 
     {
         apod = apodtx[i] * apodrx[i];
@@ -372,24 +372,24 @@ void beamform_cubic(
 }
 
 void beamform_nearest(
-    float t0,
-    float dt,
+    pycbf_datatype t0,
+    pycbf_datatype dt,
     int nt,
-    float * sig,
+    pycbf_datatype * sig,
     int nout,
-    float thresh,
-    float * tautx,
-    float * apodtx,
-    float * taurx,
-    float * apodrx,
-    float * out,
+    pycbf_datatype thresh,
+    pycbf_datatype * tautx,
+    pycbf_datatype * apodtx,
+    pycbf_datatype * taurx,
+    pycbf_datatype * apodrx,
+    pycbf_datatype * out,
     int usf
 ) 
 {
     // upsample the signal if usf is larger than 1
-    float * sig_usf;
+    pycbf_datatype * sig_usf;
     int nt_usf;
-    float dt_usf;
+    pycbf_datatype dt_usf;
     if (usf == 1)
     {
         sig_usf = sig;
@@ -400,10 +400,10 @@ void beamform_nearest(
     {
         // figure out upsampled dimensions and spacing
         nt_usf = usf * (nt-1) + 1;
-        dt_usf = dt / ((float) usf);
+        dt_usf = dt / ((pycbf_datatype) usf);
 
         // make the time vector to interpolate along
-        float * tin_usf = (float *) malloc(nt_usf * sizeof(float));
+        pycbf_datatype * tin_usf = (pycbf_datatype *) malloc(nt_usf * sizeof(pycbf_datatype));
         for (int it=0; it<nt_usf; ++it) tin_usf[it] = t0 + it*dt_usf;
 
         // make the interpolator for the input signal
@@ -418,7 +418,7 @@ void beamform_nearest(
     }
 
     // apply apodization and sum with current output vector
-    float apod;
+    pycbf_datatype apod;
     int it;
     for(int i=0; i<nout; ++i) 
     {

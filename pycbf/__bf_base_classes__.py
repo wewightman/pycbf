@@ -8,6 +8,9 @@ logger = logging.getLogger(__name__)
 global __BMFRM_PARAMS__
 __BMFRM_PARAMS__ = {}
 
+# technically lets you switch the precision of the floating point
+# you also need to set the variable in the type def in the cuda code
+# It doesnt really seem to work though soooooo, somethign to play with at a later date
 __PYCBF_DATATYPE__ = float32 # float32 or float64
 
 class BeamformerException(Exception): pass

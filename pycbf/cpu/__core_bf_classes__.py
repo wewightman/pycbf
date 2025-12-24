@@ -69,7 +69,7 @@ class TabbedBeamformer(Tabbed, CPUBeamformer):
         self.__check_indexing_limits__()
 
         from multiprocessing import RawArray
-        from ctypes import c_float, POINTER
+        from pycbf.cpu.__engine__ import __pycbf_ctype__, __pycbf_pnt__
         from numpy import ascontiguousarray, zeros
 
         # Access the global shared buffer
@@ -96,38 +96,35 @@ class TabbedBeamformer(Tabbed, CPUBeamformer):
         else:
             raise BeamformerException("'interp[\"kind\"]' must be either 'cubic' or 'nearest'")
 
-        # the ctype being used, might eb flexible in future
-        c_type = c_float
-
         if self.nwrkr > 1:
             # copy the tabs
-            params['pttx'] = RawArray(c_type, self. tautx.flatten())
-            params['ptrx'] = RawArray(c_type, self. taurx.flatten())
-            params['patx'] = RawArray(c_type, self.apodtx.flatten())
-            params['parx'] = RawArray(c_type, self.apodrx.flatten())
+            params['pttx'] = RawArray(__pycbf_ctype__, self. tautx.flatten())
+            params['ptrx'] = RawArray(__pycbf_ctype__, self. taurx.flatten())
+            params['patx'] = RawArray(__pycbf_ctype__, self.apodtx.flatten())
+            params['parx'] = RawArray(__pycbf_ctype__, self.apodrx.flatten())
 
             # build an output buffer for each worker
             params['results'] = {}
             for ii in range(self.nwrkr):
-                params['results'][ii] = RawArray(c_type, self.__get_buffer_size__())
+                params['results'][ii] = RawArray(__pycbf_ctype__, self.__get_buffer_size__())
 
             # build the buffer for input RF data
-            params['psig'] = RawArray(c_type, self.nt * self.ntx * self.nrx)
+            params['psig'] = RawArray(__pycbf_ctype__, self.nt * self.ntx * self.nrx)
 
             self.__start_pool__()
         else:
             # copy the tabs
-            params['pttx'] = ascontiguousarray(self. tautx, dtype=c_type).ctypes.data_as(POINTER(c_type))
-            params['ptrx'] = ascontiguousarray(self. taurx, dtype=c_type).ctypes.data_as(POINTER(c_type))
-            params['patx'] = ascontiguousarray(self.apodtx, dtype=c_type).ctypes.data_as(POINTER(c_type))
-            params['parx'] = ascontiguousarray(self.apodrx, dtype=c_type).ctypes.data_as(POINTER(c_type))
+            params['pttx'] = ascontiguousarray(self. tautx, dtype=__pycbf_ctype__).ctypes.data_as(__pycbf_pnt__)
+            params['ptrx'] = ascontiguousarray(self. taurx, dtype=__pycbf_ctype__).ctypes.data_as(__pycbf_pnt__)
+            params['patx'] = ascontiguousarray(self.apodtx, dtype=__pycbf_ctype__).ctypes.data_as(__pycbf_pnt__)
+            params['parx'] = ascontiguousarray(self.apodrx, dtype=__pycbf_ctype__).ctypes.data_as(__pycbf_pnt__)
 
             # build an output buffer for each worker
             params['results'] = {}
-            params['results'][0] = zeros(self.__get_buffer_size__(), dtype=c_type).ctypes.data_as(POINTER(c_type))
+            params['results'][0] = zeros(self.__get_buffer_size__(), dtype=__pycbf_ctype__).ctypes.data_as(__pycbf_pnt__)
 
             # build the buffer for input RF data
-            params['psig'] = zeros(self.nt * self.ntx * self.nrx, dtype=c_type).ctypes.data_as(POINTER(c_type))
+            params['psig'] = zeros(self.nt * self.ntx * self.nrx, dtype=__pycbf_ctype__).ctypes.data_as(__pycbf_pnt__)
 
             params['idx'] = 0
 
@@ -153,8 +150,8 @@ class TabbedBeamformer(Tabbed, CPUBeamformer):
     def __beamform_single__(id, itx, irx):
         """Use the identified beamformer to beamform the aline specified by tx and rx indices"""
         from numpy import ravel_multi_index
-        from pycbf.cpu.__engine__ import __cpu_pycbf__
-        from ctypes import c_float, c_int
+        from pycbf.cpu.__engine__ import __cpu_pycbf__, __pycbf_ctype__
+        from ctypes import c_int
 
         params = __BMFRM_PARAMS__[id]
 
@@ -184,14 +181,14 @@ class TabbedBeamformer(Tabbed, CPUBeamformer):
 
         if interp['kind'] == 'cubic':
             __cpu_pycbf__.beamform_cubic(
-                c_float(t0), c_float(dt), c_int(nt), psig,
-                c_int(nop), c_float(thr), pttx, patx, ptrx, parx, out
+                __pycbf_ctype__(t0), __pycbf_ctype__(dt), c_int(nt), psig,
+                c_int(nop), __pycbf_ctype__(thr), pttx, patx, ptrx, parx, out
             )
         elif interp['kind'] == 'nearest':
             usf = interp['usf']
             __cpu_pycbf__.beamform_nearest(
-                c_float(t0), c_float(dt), c_int(nt), psig,
-                c_int(nop), c_float(thr), pttx, patx, ptrx, parx, out, c_int(usf)
+                __pycbf_ctype__(t0), __pycbf_ctype__(dt), c_int(nt), psig,
+                c_int(nop), __pycbf_ctype__(thr), pttx, patx, ptrx, parx, out, c_int(usf)
             )
 
     @staticmethod
@@ -223,7 +220,8 @@ class TabbedBeamformer(Tabbed, CPUBeamformer):
     def __call__(self, txrxt:ndarray):
         from numpy import array, sum, ascontiguousarray
         from itertools import product
-        from ctypes import memmove, c_float, POINTER, sizeof
+        from pycbf.cpu.__engine__ import __pycbf_ctype__, __pycbf_pnt__
+        from ctypes import memmove, sizeof
 
         # ensure input data meets data specs
         if txrxt.shape != (self.ntx, self.nrx, self.nt):
@@ -231,10 +229,10 @@ class TabbedBeamformer(Tabbed, CPUBeamformer):
         
         params = __BMFRM_PARAMS__[self.id]
 
-        rf = ascontiguousarray(txrxt, dtype=c_float).ctypes.data_as(POINTER(c_float))
+        rf = ascontiguousarray(txrxt, dtype=__pycbf_ctype__).ctypes.data_as(__pycbf_pnt__)
 
         #for ii, rf in enumerate(txrxt.flatten()): params['psig'][ii] = rf
-        memmove(params['psig'], rf, sizeof(c_float)*txrxt.size)
+        memmove(params['psig'], rf, sizeof(__pycbf_ctype__)*txrxt.size)
 
         self.__zero_buffers__()
 

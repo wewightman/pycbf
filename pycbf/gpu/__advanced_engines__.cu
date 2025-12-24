@@ -1,8 +1,11 @@
 extern "C" {
-    __device__ float sign(float x)
+    // use a typdef to generalize the floating point type
+    typedef float pycbf_dtype;
+
+    __device__ pycbf_dtype sign(pycbf_dtype x)
     { 
 
-        float t = x<0.0f ? -1.0f : 0.0f;
+        pycbf_dtype t = x<0.0f ? -1.0f : 0.0f;
 
         return x > 0.0f ? 1.0f : t;
 
@@ -13,18 +16,18 @@ extern "C" {
      */
     __global__
     void calc_dmas(
-        const float*    imsep,     // beamformed images before summing on the correlation axis (nsep by np)
-        const long long nsep,      // number of separated images on the correlation axis
-        const long long np,        // number of points in the image
-        const int*      lags,      // an integer array specifying the lag indices to sum over
-        const int       nlag,      // the number of lags in the lag array
-        const int       sumtype,   // a flag indicating signed-square-root DMAS (0) or power DMAS (1)
-        const int       sumlags,   // a flag indicating whether to sub across the lags (1) or not (0)
-        float*          imout      // the DMAS image - size np or nlag by np depending on sumlags
+        const pycbf_dtype*  imsep,      // beamformed images before summing on the correlation axis (nsep by np)
+        const long long     nsep,       // number of separated images on the correlation axis
+        const long long     np,         // number of points in the image
+        const int*          lags,       // an integer array specifying the lag indices to sum over
+        const int           nlag,       // the number of lags in the lag array
+        const int           sumtype,    // a flag indicating signed-square-root DMAS (0) or power DMAS (1)
+        const int           sumlags,    // a flag indicating whether to sub across the lags (1) or not (0)
+        pycbf_dtype*        imout       // the DMAS image - size np or nlag by np depending on sumlags
     )
     {
         long long tid, tpb, ilag, isep, ip, ipout;
-        float product;
+        pycbf_dtype product;
 
         // get cuda step sizes
         tpb = blockDim.x * blockDim.y * blockDim.z; // threads per block
