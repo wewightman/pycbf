@@ -4,22 +4,22 @@ from numpy import ndarray
 
 @dataclass(kw_only=True)
 class CPUBeamformer(Tabbed, Parallelized):
-    nwrkr : int = 8
+    nwrkr : int = 1
     t0 : float = field(init=True)
     dt : float = field(init=True)
     nt :   int = field(init=True)
     thresh : float = 1E-2
+    interp : dict = field(default_factory=lambda:{"kind":"cubic"})
 
     def __post_init__(self):
         Parallelized.__post_init__(self)
         Tabbed.__post_init__(self)
         from multiprocessing import RawArray
-        from ctypes import c_float
-
-        __BMFRM_PARAMS__[self.id] = {}
+        from ctypes import c_float, POINTER
+        from numpy import ascontiguousarray, zeros
 
         # Access the global shared buffer
-        params = __BMFRM_PARAMS__[self.id]
+        params = dict()
 
         # copy tx/rx/output point dimensions
         params['ntx']    = self.ntx
@@ -30,24 +30,53 @@ class CPUBeamformer(Tabbed, Parallelized):
         params['nt']     = self.nt
         params['thresh'] = self.thresh
 
+        kind = self.interp.get("kind", '')
+        if kind == 'cubic':
+            params['interp'] = self.interp
+        elif kind == 'nearest':
+            usf = int(self.interp.get("usf", 1))
+            if usf < 1: raise BeamformerException("'usf' must be an integer >= 1 for 'interp' type 'nearest'")
+            self.interp['usf'] = usf
+            params['interp'] = self.interp
+        else:
+            raise BeamformerException("'interp[\"kind\"]' must be either 'cubic' or 'nearest'")
+
         # the ctype being used, might eb flexible in future
         c_type = c_float
 
-        # copy the tabs
-        params['pttx'] = RawArray(c_type, self. tautx.flatten())
-        params['ptrx'] = RawArray(c_type, self. taurx.flatten())
-        params['patx'] = RawArray(c_type, self.apodtx.flatten())
-        params['parx'] = RawArray(c_type, self.apodrx.flatten())
+        if self.nwrkr > 1:
+            # copy the tabs
+            params['pttx'] = RawArray(c_type, self. tautx.flatten())
+            params['ptrx'] = RawArray(c_type, self. taurx.flatten())
+            params['patx'] = RawArray(c_type, self.apodtx.flatten())
+            params['parx'] = RawArray(c_type, self.apodrx.flatten())
 
-        # build an output buffer for each worker
-        params['results'] = {}
-        for ii in range(self.nwrkr):
-            params['results'][ii] = RawArray(c_type, self.nop)
+            # build an output buffer for each worker
+            params['results'] = {}
+            for ii in range(self.nwrkr):
+                params['results'][ii] = RawArray(c_type, self.nop)
 
-        # build the buffer for input RF data
-        params['psig'] = RawArray(c_type, self.nt * self.ntx * self.nrx)
+            # build the buffer for input RF data
+            params['psig'] = RawArray(c_type, self.nt * self.ntx * self.nrx)
 
-        self.__start_pool__()
+            self.__start_pool__()
+        else:
+            # copy the tabs
+            params['pttx'] = ascontiguousarray(self. tautx, dtype=c_type).ctypes.data_as(POINTER(c_type))
+            params['ptrx'] = ascontiguousarray(self. taurx, dtype=c_type).ctypes.data_as(POINTER(c_type))
+            params['patx'] = ascontiguousarray(self.apodtx, dtype=c_type).ctypes.data_as(POINTER(c_type))
+            params['parx'] = ascontiguousarray(self.apodrx, dtype=c_type).ctypes.data_as(POINTER(c_type))
+
+            # build an output buffer for each worker
+            params['results'] = {}
+            params['results'][0] = zeros(self.nop, dtype=c_type).ctypes.data_as(POINTER(c_type))
+
+            # build the buffer for input RF data
+            params['psig'] = zeros(self.nt * self.ntx * self.nrx, dtype=c_type).ctypes.data_as(POINTER(c_type))
+
+            params['idx'] = 0
+
+        __BMFRM_PARAMS__[self.id] = params
 
     @staticmethod
     def __offset_pnt__(pnt, offset:int):
@@ -74,6 +103,8 @@ class CPUBeamformer(Tabbed, Parallelized):
 
         params = __BMFRM_PARAMS__[id]
 
+        interp = params['interp']
+
         iwrkr = params['idx']
         ntx   = params['ntx']
         nrx   = params['nrx']
@@ -96,10 +127,17 @@ class CPUBeamformer(Tabbed, Parallelized):
 
         out  = params['results'][iwrkr]
 
-        __cpu_pycbf__.beamform(
-            c_float(t0), c_float(dt), c_int(nt), psig,
-            c_int(nop), c_float(thr), pttx, patx, ptrx, parx, out
-        )
+        if interp['kind'] == 'cubic':
+            __cpu_pycbf__.beamform_cubic(
+                c_float(t0), c_float(dt), c_int(nt), psig,
+                c_int(nop), c_float(thr), pttx, patx, ptrx, parx, out
+            )
+        elif interp['kind'] == 'nearest':
+            usf = interp['usf']
+            __cpu_pycbf__.beamform_nearest(
+                c_float(t0), c_float(dt), c_int(nt), psig,
+                c_int(nop), c_float(thr), pttx, patx, ptrx, parx, out, c_int(usf)
+            )
 
     @staticmethod
     def __mp_init_workers__(id, queue):
@@ -128,8 +166,9 @@ class CPUBeamformer(Tabbed, Parallelized):
             memset(params['results'][iwrkr], 0, int(self.nop*sizeof(params['results'][iwrkr]._type_)))
         
     def __call__(self, txrxt:ndarray):
-        from numpy import array, sum
+        from numpy import array, sum, ascontiguousarray
         from itertools import product
+        from ctypes import memmove, c_float, POINTER, sizeof
 
         # ensure input data meets data specs
         if txrxt.shape != (self.ntx, self.nrx, self.nt):
@@ -137,12 +176,21 @@ class CPUBeamformer(Tabbed, Parallelized):
         
         params = __BMFRM_PARAMS__[self.id]
 
-        for ii, rf in enumerate(txrxt.flatten()): params['psig'][ii] = rf
+        rf = ascontiguousarray(txrxt, dtype=c_float).ctypes.data_as(POINTER(c_float))
+
+        #for ii, rf in enumerate(txrxt.flatten()): params['psig'][ii] = rf
+        memmove(params['psig'], rf, sizeof(c_float)*txrxt.size)
 
         self.__zero_buffers__()
 
         # delay and apodize
-        self.pool.starmap(CPUBeamformer.__beamform_single__, product([self.id], range(self.ntx), range(self.nrx)))
+        iterator = product([self.id], range(self.ntx), range(self.nrx))
+        if self.nwrkr > 1:
+            self.pool.starmap(CPUBeamformer.__beamform_single__, iterator)
+        else:
+            for id, itx, irx in iterator:
+                CPUBeamformer.__beamform_single__(id, itx, irx)
+
 
         temp = array([params['results'][id][:self.nop] for id in range(self.nwrkr)])
 

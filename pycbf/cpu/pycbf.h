@@ -43,7 +43,7 @@ extern void fillarr(int N, float *vec, float fillval);
 #ifndef __pycbf_pyusel__
 #define __pycbf_pyusel__
 
-extern void beamform(
+extern void beamform_cubic(
     float t0,
     float dt,
     int nt,
@@ -55,6 +55,21 @@ extern void beamform(
     float * taurx,
     float * apodrx,
     float * out
+);
+
+extern void beamform_nearest(
+    float t0,
+    float dt,
+    int nt,
+    float * sig,
+    int nout,
+    float thresh,
+    float * tautx,
+    float * apodtx,
+    float * taurx,
+    float * apodrx,
+    float * out,
+    int usf
 );
 
 #endif
