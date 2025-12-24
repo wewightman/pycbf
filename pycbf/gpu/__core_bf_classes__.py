@@ -284,6 +284,9 @@ class TabbedDAS_RxSeparate(TabbedDAS):
         if buffer is None: pout = cp.zeros(self.nrx*self.nop, dtype=np.float32)
         else: raise Exception("Something is wrong with input buffers") #pout = buffer
 
+        k = 128
+        S = cp.ascontiguousarray(cp.array(__make_S_by_k__(k)), dtype=np.float32)
+
         bf_params = __BMFRM_PARAMS__[self.id]
         routine_params = (
             bf_params['rfinfo'],
@@ -292,6 +295,7 @@ class TabbedDAS_RxSeparate(TabbedDAS):
             bf_params['apodtx'],
             bf_params['taurx'],
             bf_params['apodrx'],
+            np.int32(k), S,
             np.int32(self.nop),
             pout
         )
