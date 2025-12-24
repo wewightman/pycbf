@@ -22,7 +22,7 @@ setup(
         'pycbf.dataio':'pycbf/dataio'
     },
     license="MIT",
-    package_data={'pycbf.gpu':["__engine__.cu"]},
+    package_data={'pycbf.gpu':["__engines__.cu", "__advanced_engines__.cu"]},
     ext_modules=[pycbfcpu],
     version="1.0.0",
     requires=[

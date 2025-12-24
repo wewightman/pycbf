@@ -105,7 +105,7 @@ class SyntheticBeamformer(Synthetic, GPUBeamformer):
         self.__check_indexing_limits__()
 
         from cupy import array, ascontiguousarray, float32
-        from pycbf.gpu.__engine__ import RFInfo
+        from pycbf.gpu.__engines__ import RFInfo
         import numpy as np
         params = dict()
 
@@ -150,7 +150,7 @@ class SyntheticBeamformer(Synthetic, GPUBeamformer):
         sumtypes = {'none':0, 'tx_only':1, 'rx_only':2, 'tx_and_rx':3}
 
         if self.interp['kind'] == 'korder_cubic':
-            from pycbf.gpu.__engine__ import das_bmode_synthetic_korder_cubic as gpu_kernel
+            from pycbf.gpu.__engines__ import das_bmode_synthetic_korder_cubic as gpu_kernel
 
             k = int(self.interp['k'])
             S = cp.ascontiguousarray(cp.array(__make_S_by_k__(k)), dtype=np.float32)
@@ -183,7 +183,7 @@ class SyntheticBeamformer(Synthetic, GPUBeamformer):
             raise NotImplementedError("Ideal cubic interpolation has not been implemented")
 
         else:
-            from pycbf.gpu.__engine__ import das_bmode_synthetic_multi_interp as gpu_kernel
+            from pycbf.gpu.__engines__ import das_bmode_synthetic_multi_interp as gpu_kernel
 
             interp_keys = {"nearest":0, "linear":1, "akima":2, "makima":3}
 
@@ -233,7 +233,7 @@ class TabbedBeamformer(Tabbed,GPUBeamformer):
         self.__check_indexing_limits__()
 
         from cupy import array, ascontiguousarray, float32
-        from pycbf.gpu.__engine__ import RFInfo
+        from pycbf.gpu.__engines__ import RFInfo
         import numpy as np
 
         # Access the global shared buffer
@@ -267,7 +267,7 @@ class TabbedBeamformer(Tabbed,GPUBeamformer):
         sumtypes = {'none':0, 'tx_only':1, 'rx_only':2, 'tx_and_rx':3}
 
         if self.interp['kind'] == 'korder_cubic':
-            from pycbf.gpu.__engine__ import das_bmode_tabbed_korder_cubic as gpu_kernel
+            from pycbf.gpu.__engines__ import das_bmode_tabbed_korder_cubic as gpu_kernel
 
             k = int(self.interp['k'])
             S = cp.ascontiguousarray(cp.array(__make_S_by_k__(k)), dtype=np.float32)
@@ -294,7 +294,7 @@ class TabbedBeamformer(Tabbed,GPUBeamformer):
             raise NotImplementedError("Ideal cubic interpolation has not been implemented")
 
         else:
-            from pycbf.gpu.__engine__ import das_bmode_tabbed_multi_interp as gpu_kernel
+            from pycbf.gpu.__engines__ import das_bmode_tabbed_multi_interp as gpu_kernel
 
             interp_keys = {"nearest":0, "linear":1, "akima":2, "makima":3}
 
