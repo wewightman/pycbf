@@ -308,7 +308,7 @@ class GriddedSynthetic():
         self.nop    = nop
         self.ndimp  = ndimp
 
-@dataclass(kw_only=False)
+@dataclass(kw_only=True)
 class GriddedTabbed(Tabbed):    
     """The minimum inputs for a `GriddedTabbed` beamformer are the four beamforming tab matrices `tautx`, `taurx`, `apodtx`, and `apodrx` and the grid definition parameters `gridapex`, `gridorig`, `griddelt`, and `gridnums`.
 
