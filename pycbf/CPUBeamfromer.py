@@ -4,7 +4,7 @@ from numpy import ndarray
 
 @dataclass(kw_only=True)
 class CPUBeamformer(Tabbed, Parallelized):
-    nwrkr : int = 8
+    nwrkr : int = 1
     t0 : float = field(init=True)
     dt : float = field(init=True)
     nt :   int = field(init=True)
@@ -47,7 +47,8 @@ class CPUBeamformer(Tabbed, Parallelized):
         # build the buffer for input RF data
         params['psig'] = RawArray(c_type, self.nt * self.ntx * self.nrx)
 
-        self.__start_pool__()
+        if self.nwrkr > 1: self.__start_pool__()
+        else: params['idx'] = 0
 
     @staticmethod
     def __offset_pnt__(pnt, offset:int):
@@ -146,7 +147,13 @@ class CPUBeamformer(Tabbed, Parallelized):
         self.__zero_buffers__()
 
         # delay and apodize
-        self.pool.starmap(CPUBeamformer.__beamform_single__, product([self.id], range(self.ntx), range(self.nrx)))
+        iterator = product([self.id], range(self.ntx), range(self.nrx))
+        if self.nwrkr > 1:
+            self.pool.starmap(CPUBeamformer.__beamform_single__, iterator)
+        else:
+            for id, itx, irx in iterator:
+                CPUBeamformer.__beamform_single__(id, itx, irx)
+
 
         temp = array([params['results'][id][:self.nop] for id in range(self.nwrkr)])
 
