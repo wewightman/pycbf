@@ -9,6 +9,7 @@ class CPUBeamformer(Tabbed, Parallelized):
     dt : float = field(init=True)
     nt :   int = field(init=True)
     thresh : float = 1E-2
+    interp : dict = field(default_factory=lambda:{"kind":"cubic"})
 
     def __post_init__(self):
         Parallelized.__post_init__(self)
@@ -17,10 +18,8 @@ class CPUBeamformer(Tabbed, Parallelized):
         from ctypes import c_float, POINTER
         from numpy import ascontiguousarray, zeros
 
-        __BMFRM_PARAMS__[self.id] = {}
-
         # Access the global shared buffer
-        params = __BMFRM_PARAMS__[self.id]
+        params = dict()
 
         # copy tx/rx/output point dimensions
         params['ntx']    = self.ntx
@@ -30,6 +29,17 @@ class CPUBeamformer(Tabbed, Parallelized):
         params['dt']     = self.dt
         params['nt']     = self.nt
         params['thresh'] = self.thresh
+
+        kind = self.interp.get("kind", '')
+        if kind == 'cubic':
+            params['interp'] = self.interp
+        elif kind == 'nearest':
+            usf = int(self.interp.get("usf", 1))
+            if usf < 1: raise BeamformerException("'usf' must be an integer >= 1 for 'interp' type 'nearest'")
+            self.interp['usf'] = usf
+            params['interp'] = self.interp
+        else:
+            raise BeamformerException("'interp[\"kind\"]' must be either 'cubic' or 'nearest'")
 
         # the ctype being used, might eb flexible in future
         c_type = c_float
@@ -66,6 +76,8 @@ class CPUBeamformer(Tabbed, Parallelized):
 
             params['idx'] = 0
 
+        __BMFRM_PARAMS__[self.id] = params
+
     @staticmethod
     def __offset_pnt__(pnt, offset:int):
         from ctypes import sizeof, cast, POINTER, c_void_p
@@ -91,6 +103,8 @@ class CPUBeamformer(Tabbed, Parallelized):
 
         params = __BMFRM_PARAMS__[id]
 
+        interp = params['interp']
+
         iwrkr = params['idx']
         ntx   = params['ntx']
         nrx   = params['nrx']
@@ -113,10 +127,17 @@ class CPUBeamformer(Tabbed, Parallelized):
 
         out  = params['results'][iwrkr]
 
-        __cpu_pycbf__.beamform(
-            c_float(t0), c_float(dt), c_int(nt), psig,
-            c_int(nop), c_float(thr), pttx, patx, ptrx, parx, out
-        )
+        if interp['kind'] == 'cubic':
+            __cpu_pycbf__.beamform_cubic(
+                c_float(t0), c_float(dt), c_int(nt), psig,
+                c_int(nop), c_float(thr), pttx, patx, ptrx, parx, out
+            )
+        elif interp['kind'] == 'nearest':
+            usf = interp['usf']
+            __cpu_pycbf__.beamform_nearest(
+                c_float(t0), c_float(dt), c_int(nt), psig,
+                c_int(nop), c_float(thr), pttx, patx, ptrx, parx, out, c_int(usf)
+            )
 
     @staticmethod
     def __mp_init_workers__(id, queue):
