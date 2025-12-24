@@ -366,6 +366,7 @@ extern "C" {
      * calc_tautx_apodtx: calcualte the tx delay tabs and apodizations given transmit data structures
      * 
      * tau and apod are pointers to be filled with the correct values
+     * If the depht of field is non-zero, uses geometry described in Nguyen et al., 2016. doi: 10.1109/TMI.2015.2456982
      */
     void calc_tautx_apodtx(
         const int    ndim,  // 2 or 3 dimensions
@@ -395,20 +396,24 @@ extern "C" {
         // if synthetic focal point (diverging or converging waves)
         if (0.0 != ala)
         {
-            // if ((dof > 1E-9) && (abs(dxproj) <= dof/2)) {
-            //     *tau = 2.0*(dxproj/dof)*(dxmag/c0) + t0;
-            //     if (sqrt(abs(dxmag*dxmag - dxproj*dxproj)) <= dof * sin(ala) / 2.0) *apod = 1.0;
-            //     else *apod = 0.0;
-            // }
             if (dof != 0.0) {
-                *tau = dxproj/c0 + t0;
-                if (sqrt(abs(dxmag*dxmag - dxproj*dxproj)) <= dof * sin(ala) / 2.0) *apod = 1.0;
+                // if within the hour glass, use spherical delay tabs
+                if (acos(abs(dxproj/dxmag)) <= ala) {
+                    *tau = (dxproj/abs(dxproj)) * (dxmag/c0) + t0;
+                    *apod = 1.0;
+                }
+                // if within the DOF and lateral range, use continuous planar
+                else if (sqrt(abs(dxmag*dxmag - dxproj*dxproj)) < dof * sin(ala) / 2.0) {
+                    *tau = dxproj * sqrt(1 + tan(ala)*tan(ala)) /c0 + t0;
+                    *apod = 1.0;
+                } 
+                // else invalid
                 else *apod = 0.0;
             }
             else {
-                if (abs(dxproj) > 1E-9) *tau = (dxproj/abs(dxproj)) * (dxmag/c0) + t0;
+                if (abs(dxproj) > 1E-12) *tau = (dxproj/abs(dxproj)) * (dxmag/c0) + t0;
                 else *tau = t0;
-                if ((abs(dxmag) > 1E-9) && (acos(abs(dxproj/dxmag)) > ala)) *apod = 0.0;
+                if ((abs(dxmag) > 1E-12) && (acos(abs(dxproj/dxmag)) > ala)) *apod = 0.0;
                 else *apod = 1.0;
             }
         }
