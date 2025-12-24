@@ -4,6 +4,8 @@ import numpy as np
 import ctypes
 from multiprocessing import Pool, RawValue, RawArray
 from pycbf import Beamformer, __BMFRM_PARAMS__, __BMFRM_DEBUG__
+import logging
+logger = logging.getLogger(__name__)
 
 # python ctype wrappers for c engines
 import pycbf.trig as trig
@@ -11,7 +13,7 @@ import pycbf.trig as trig
 class PWBeamformer(Beamformer):
     """Right now, assumes all points are within y=0"""
     def __init__(self, c, fnum, points, alphas, trefs, refs, fs, tstart, nsamp:int, ncores=None, parallel=False):
-        if __BMFRM_DEBUG__: print("Initializing a PWBeamformer...")
+        logger.info("Initializing a PWBeamformer...")
         Beamformer.__init__(self)
 
         def putsingles(data, dtype):
@@ -28,7 +30,8 @@ class PWBeamformer(Beamformer):
                     res[ind][indd] = dtype(data[ind,indd])
             return res
         
-        if __BMFRM_DEBUG__: print("  Formatting input parameters...")
+        logger.info("  Formatting input parameters...")
+
         # copy singleton vectors to param structure
         params = {}
         params['npoints'] = points.shape[0]
@@ -48,7 +51,7 @@ class PWBeamformer(Beamformer):
             if ncores is None: ncores = int(1)
             params['ncores'] = ncores
 
-
+        logger.info("Copy data into shared buffers")
         # copy large arrays to ctypes
         params['points'] = RawArray(ctypes.c_float, params['npoints']*3)
         _points = np.ascontiguousarray(points, dtype=ctypes.c_float).ctypes.data_as(ctypes.POINTER(ctypes.c_float))
@@ -89,7 +92,9 @@ class PWBeamformer(Beamformer):
         self.__init_tabs__()
     
     def __gen_tab__(self, ind):
+        logger.info("Generating delay tabs")
         # load parameters
+        logger.info("Copying parameter variables")
         params = __BMFRM_PARAMS__[self.id]
         npoints = ctypes.c_int(params['npoints'])
         nsamp = ctypes.c_int(params['nsamp'])
@@ -105,14 +110,17 @@ class PWBeamformer(Beamformer):
         norm = np.ascontiguousarray([np.sin(alpha), 0, np.cos(alpha)], dtype=ctypes.c_float).ctypes.data_as(ctypes.POINTER(ctypes.c_float))
 
         # calculate time delays
+        logger.info("Calcualte exact distances")
         trig.fillarr(npoints, tau, ctypes.c_float(0))
         trig.pwtxengine(npoints, c, tref, ref, norm, params['points'], tau)
         trig.rxengine(npoints, c, ref, params['points'], tau)
 
         # calculate index to select
+        logger.info("Converting time delays to indices")
         trig.calcindices(npoints, nsamp, tstart, fs, tau, mask, tind)
 
     def __gen_mask__(self, ind):
+        logger.info("Generating masks")
         # load parameters
         params = __BMFRM_PARAMS__[self.id]
         npoints = ctypes.c_int(params['npoints'])
@@ -127,7 +135,7 @@ class PWBeamformer(Beamformer):
         trig.genmask3D(npoints, fnum, ctypes.c_int(1), fnum, ctypes.c_int(1), norm, focus, ref, params['points'], mask)
 
     def __init_tabs__(self):
-        if __BMFRM_DEBUG__: print("    Generating Transmission Tabs")
+        logger.info("Generating Transmission Tabs")
         params = __BMFRM_PARAMS__[self.id]
 
         # if able to be parallelized do it, else...
@@ -139,14 +147,16 @@ class PWBeamformer(Beamformer):
                 self.__gen_tab__(inda)
     
     def __init_masks__(self):
-        if __BMFRM_DEBUG__: print("    Generating masks")
+        logger.info("Generating masks")
         params = __BMFRM_PARAMS__[self.id]
 
         # if able to be parallelized do it, else...
         if params['parallel']:
+            logger.info("Using parallel processing")
             with Pool() as p:
                 p.map(self.__gen_mask__, range(params['nacqs']))
         else:
+            logger.info("Using serial processing")
             for inda in range(params['nacqs']):
                 self.__gen_mask__(inda)
 
@@ -169,32 +179,33 @@ class PWBeamformer(Beamformer):
         for inda in range(nacqs):
             trig.copysubvec(norig, nsub, ctypes.c_int(inda), data, datas[inda])
 
-
     def __call__(self, data):
         params = __BMFRM_PARAMS__[self.id]
         nacqs = params['nacqs']
         npoints = params['npoints']
 
-        if __BMFRM_DEBUG__: print("Beamforming...\n  Copying data")
+        logger.info("Beamforming...")
+        logger.info("Copying data")
         self.__copy_data_2_buffer__(data)
 
         # send data collection to parallelization pool (eg delay)
-        if __BMFRM_DEBUG__: print("  Starting pool...")
         if params['parallel']:
+            logger.info("Starting pool...")
             with Pool() as p:
                 p.map(self.__get_data__, range(nacqs))
         else:
+            logger.info("Non-parallell beamforming")
             for inda in range(nacqs):
                 self.__get_data__(inda)
         
         # sum up all output vectors and clear from memory(eg and sum)
-        if __BMFRM_DEBUG__: print("  Finished pool. Summing...")
+        logger.info("Finished beamforming. Summing...")
         results = params['results']
         output = params['output']
         trig.fillarr(npoints, output, ctypes.c_float(0))
         for idr in range(len(results)):
             trig.sumvecs(npoints, output, results[idr], ctypes.c_float(0), output)
         
-        if __BMFRM_DEBUG__: print("  Converting to output array")
+        logger.info("Converting to output array")
         return np.array([output[ind] for ind in range(npoints)])
         
