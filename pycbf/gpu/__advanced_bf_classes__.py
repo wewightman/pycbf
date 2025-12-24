@@ -1,5 +1,6 @@
 from pycbf.__bf_base_classes__ import __BMFRM_PARAMS__
-from pycbf.gpu.__core_bf_classes__ import TabbedBeamformer, SyntheticBeamformer
+from pycbf.__advanced_bf_classes__ import DMASBeamformer
+from pycbf.gpu.__core_bf_classes__ import TabbedBeamformer, SyntheticBeamformer, __GPU_Beamformer__
 from dataclasses import dataclass, field
 from typing import ClassVar, Literal
 
@@ -7,33 +8,13 @@ from numpy import ndarray as npNDArray
 from cupy  import ndarray as cpNDArray
 
 @dataclass(kw_only=True)
-class TabbedDMASBeamformer(TabbedBeamformer):
-    """Delay multiply and sum beamformer using arrays of pre-computed delay tabs"""
-    lags : npNDArray = field(init=True)
-    lagaxis : Literal["tx", "rx"] = "rx"
-    nlags : int = field(init=False)
-    sumlags : bool = True
-    sumtype : str = field(init=False)
-    dmastype : Literal["ssr", "power"] = "ssr"
-    dmasfilt : dict = field(init=True,default_factory=lambda:{"kind":"none"})
+class __GPU_DMAS_Beamformer__(DMASBeamformer):
 
     def __post_init__(self):
-        import numpy as np
-        import cupy as cp
+        DMASBeamformer.__post_init__(self)
 
-        # based on the lag/correlation axis, set the sumtype for the DAS beamformer
-        if   self.lagaxis == "rx": self.sumtype = "tx_only"
-        elif self.lagaxis == "tx": self.sumtype = "rx_only"
-
-        TabbedBeamformer.__post_init__(self)
-
-        self.lags = np.ascontiguousarray(self.lags, dtype=int)
-        self.nlags = len(self.lags)
-        params = __BMFRM_PARAMS__[self.id]
-
-        params['lags'] = cp.ascontiguousarray(cp.array(self.lags), dtype=cp.int32)
-
-        __BMFRM_PARAMS__[self.id] = params
+    def __run_base_beamforming__(self, txrxt):
+        raise NotImplementedError("Instances of __GPU_DMAS_Beamfomer__ must implement __run_base_beamforming__ method")
 
     def __check_or_init_buffer__(self, buffer : cpNDArray | None = None) -> cpNDArray:
         import cupy as cp
@@ -45,17 +26,17 @@ class TabbedDMASBeamformer(TabbedBeamformer):
         else: raise Exception("Something is wrong with input buffers")
 
         return imout
-
+    
     def __call__(self, txrxt : cpNDArray | npNDArray, out_as_numpy : bool = True, buffer : cpNDArray | None = None) -> cpNDArray | npNDArray:
         from pycbf.gpu.__engines__ import calc_dmas
         import numpy as np
         import cupy as cp
 
         # delay and sum the data along either the tx or rx axes
-        imbf = TabbedBeamformer.__call__(self, txrxt=txrxt, out_as_numpy=False)
+        imbf = self.__run_base_beamforming__(txrxt)
 
         # validate or make a new output buffer
-        imout = self.__check_or_init_buffer__(buffer)
+        imout = __GPU_DMAS_Beamformer__.__check_or_init_buffer__(self, buffer)
 
         # get the dmassum flag set for signed-square root or power dmas
         if   self.dmastype ==   "ssr": dmasflag = np.int32(0)
@@ -84,3 +65,45 @@ class TabbedDMASBeamformer(TabbedBeamformer):
         # convert to numpy or return as cupy array
         if out_as_numpy: return cp.asnumpy(imout)
         else: return imout
+
+@dataclass(kw_only=True)
+class TabbedDMASBeamformer(TabbedBeamformer, __GPU_DMAS_Beamformer__):
+    """Delay multiply and sum beamformer using arrays of pre-computed delay tabs"""
+
+    def __post_init__(self):
+        import cupy as cp
+        __GPU_DMAS_Beamformer__.__post_init__(self)
+        TabbedBeamformer.__post_init__(self)
+
+        params = __BMFRM_PARAMS__[self.id]
+
+        params['lags'] = cp.ascontiguousarray(cp.array(self.lags), dtype=cp.int32)
+
+        __BMFRM_PARAMS__[self.id] = params
+
+    def __run_base_beamforming__(self, txrxt):
+        return TabbedBeamformer.__call__(self, txrxt=txrxt, out_as_numpy=False)
+
+    def __call__(self, txrxt : cpNDArray | npNDArray, out_as_numpy : bool = True, buffer : cpNDArray | None = None) -> cpNDArray | npNDArray:
+        return __GPU_DMAS_Beamformer__.__call__(self, txrxt, out_as_numpy, buffer)
+    
+@dataclass(kw_only=True)
+class SyntheticDMASBeamformer(SyntheticBeamformer, __GPU_DMAS_Beamformer__):
+    """Delay multiply and sum beamformer using arrays of pre-computed delay tabs"""
+
+    def __post_init__(self):
+        import cupy as cp
+        __GPU_DMAS_Beamformer__.__post_init__(self)
+        SyntheticBeamformer.__post_init__(self)
+
+        params = __BMFRM_PARAMS__[self.id]
+
+        params['lags'] = cp.ascontiguousarray(cp.array(self.lags), dtype=cp.int32)
+
+        __BMFRM_PARAMS__[self.id] = params
+
+    def __run_base_beamforming__(self, txrxt):
+        return SyntheticBeamformer.__call__(self, txrxt=txrxt, out_as_numpy=False)
+
+    def __call__(self, txrxt : cpNDArray | npNDArray, out_as_numpy : bool = True, buffer : cpNDArray | None = None) -> cpNDArray | npNDArray:
+        return __GPU_DMAS_Beamformer__.__call__(self, txrxt, out_as_numpy, buffer)

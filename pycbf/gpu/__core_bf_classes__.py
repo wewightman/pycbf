@@ -6,7 +6,7 @@ from numpy import ndarray as npNDArray
 from cupy  import ndarray as cpNDArray
 
 @dataclass(kw_only=True)
-class GPUBeamformer(Beamformer):
+class __GPU_Beamformer__(Beamformer):
     """Base class for all GPU beamformers
     """
     t0 : float = field(init=True)
@@ -86,7 +86,7 @@ class GPUBeamformer(Beamformer):
             )
 
         # validate that input buffor is correct format or make new one
-        pout = GPUBeamformer.__check_or_init_buffer__(self, buffer)
+        pout = __GPU_Beamformer__.__check_or_init_buffer__(self, buffer)
         
         # beamform the data with specified summing
         self.__run_interp_type__(txrxt, pout)
@@ -96,11 +96,11 @@ class GPUBeamformer(Beamformer):
         else: return pout
 
 @dataclass(kw_only=True)
-class SyntheticBeamformer(Synthetic, GPUBeamformer):
+class SyntheticBeamformer(Synthetic, __GPU_Beamformer__):
     """GPU implementation of synthetic-point based beamformers
     """
     def __post_init__(self):
-        GPUBeamformer.__post_init__(self)
+        __GPU_Beamformer__.__post_init__(self)
         Synthetic.__post_init__(self)
         self.__check_indexing_limits__()
 
@@ -225,11 +225,11 @@ class SyntheticBeamformer(Synthetic, GPUBeamformer):
         del __BMFRM_PARAMS__[self.id]
 
 @dataclass(kw_only=True)
-class TabbedBeamformer(Tabbed,GPUBeamformer):
+class TabbedBeamformer(Tabbed,__GPU_Beamformer__):
     """GPU-based implementation of tabbed beamformers reading from procomputed delay tabs and apodizations
     """
     def __post_init__(self):
-        GPUBeamformer.__post_init__(self)
+        __GPU_Beamformer__.__post_init__(self)
         Tabbed.__post_init__(self)
         self.__check_indexing_limits__()
 
