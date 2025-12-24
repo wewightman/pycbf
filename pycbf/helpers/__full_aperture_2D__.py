@@ -301,7 +301,6 @@ def calc_tx_synthetic_points_focused_2D(steers, ctx, cm, xele, rpw):
 
     alneg = np.atan2(ovectx[:,0] - xele[0], ovectx[:,1])
     alpos = np.atan2(ovectx[:,0] - xele[-1], ovectx[:,1])
-    print(alneg, alpos)
 
     alatx = -(alpos - alneg)/2
     alsteers = (alpos + alneg)/2
