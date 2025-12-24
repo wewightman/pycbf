@@ -37,16 +37,24 @@ class __GPU_Beamformer__(Beamformer):
                 + f"Product of ntx * nrx * nt must be less than {ntxrxt_max} but was {ntxrxt}."
                 )
 
-    def __check_or_init_buffer__(self, buffer : cpNDArray | None = None) -> cpNDArray:
+    def __check_or_init_buffer__(self, buffer : cpNDArray | None = None, nframes:int|None=None) -> cpNDArray:
         """Validate input buffer and make sure it is the right size for the given sumtype"""
         import cupy as cp
         import numpy as np
 
-        # determine output shape based on summing choice
-        if   self.sumtype ==      'none': shape = (self.ntx, self.nrx, self.nop)
-        elif self.sumtype ==   'tx_only': shape = (          self.nrx, self.nop)
-        elif self.sumtype ==   'rx_only': shape = (self.ntx,           self.nop)
-        elif self.sumtype == 'tx_and_rx': shape =                      self.nop
+        # determine output shape based on summing choice and number of frames
+        if   self.sumtype ==      'none': 
+            if nframes is None: shape = (         self.ntx, self.nrx, self.nop)
+            else:               shape = (nframes, self.ntx, self.nrx, self.nop)
+        elif self.sumtype ==   'tx_only': 
+            if nframes is None: shape = (                   self.nrx, self.nop)
+            else:               shape = (nframes,           self.nrx, self.nop)
+        elif self.sumtype ==   'rx_only': 
+            if nframes is None: shape = (         self.ntx,           self.nop)
+            else:               shape = (nframes, self.ntx,           self.nop)
+        elif self.sumtype == 'tx_and_rx': 
+            if nframes is None: shape =                               self.nop
+            else:               shape = (nframes,                     self.nop)
         else: raise BeamformerException("Type must be 'none', 'tx_only', 'rx_only', or 'tx_and_rx'")
 
         if buffer is None: 
@@ -76,17 +84,30 @@ class __GPU_Beamformer__(Beamformer):
         else:
             raise BeamformerException("txrxt must be an instance of either a cupy or numpy ndarray but was ", type(txrxt))
         
-        if txrxt.shape != (self.ntx, self.nrx, self.nt):
-            shapestr = ""
-            for dim in txrxt.shape: shapestr += f"{dim:d}, "
-            shapestr = shapestr[:-2]
+        if cp.ndim(txrxt) == 3:
+            if txrxt.shape != (self.ntx, self.nrx, self.nt):
+                shapestr = ""
+                for dim in txrxt.shape: shapestr += f"{dim:d}, "
+                shapestr = shapestr[:-2]
 
-            raise BeamformerException(
-                f"'txrxt' must be ({self.ntx}, {self.nrx}, {self.nt}) based on input parameters but was ({shapestr})"
-            )
+                raise BeamformerException(
+                    f"'txrxt' must be ({self.ntx}, {self.nrx}, {self.nt}) based on input parameters but was ({shapestr})"
+                )
 
-        # validate that input buffor is correct format or make new one
-        pout = __GPU_Beamformer__.__check_or_init_buffer__(self, buffer)
+            # validate that input buffor is correct format or make new one
+            pout = __GPU_Beamformer__.__check_or_init_buffer__(self, buffer)
+        elif cp.ndim(txrxt) == 4:
+            if txrxt.shape[1:] != (self.ntx, self.nrx, self.nt):
+                shapestr = ""
+                for dim in txrxt.shape: shapestr += f"{dim:d}, "
+                shapestr = shapestr[:-2]
+
+                raise BeamformerException(
+                    f"'txrxt' must be ({self.ntx}, {self.nrx}, {self.nt}) based on input parameters but was ({shapestr})"
+                )
+
+            # validate that input buffor is correct format or make new one
+            pout = __GPU_Beamformer__.__check_or_init_buffer__(self, buffer, txrxt.shape[0])
         
         # beamform the data with specified summing
         self.__run_interp_type__(txrxt, pout)
@@ -150,6 +171,9 @@ class SyntheticBeamformer(Synthetic, __GPU_Beamformer__):
 
         sumtypes = {'none':0, 'tx_only':1, 'rx_only':2, 'tx_and_rx':3}
 
+        if   cp.ndim(txrxt) == 3: nframes = 1
+        elif cp.ndim(txrxt) == 4: nframes = txrxt.shape[0]
+
         if self.interp['kind'] == 'korder_cubic':
             from pycbf.gpu.__engines__ import das_bmode_synthetic_korder_cubic as gpu_kernel
 
@@ -173,10 +197,11 @@ class SyntheticBeamformer(Synthetic, __GPU_Beamformer__):
                 np.int64(self.nop),
                 bf_params[  'pnts'],
                 pout,
+                np.int64(nframes),
                 np.int32(sumtypes[self.sumtype])
             )
 
-            nblock = int(np.ceil(self.ntx * self.nrx * self.nop / self.nthread))
+            nblock = int(np.ceil(nframes * self.ntx * self.nrx * self.nop / self.nthread))
 
             gpu_kernel((nblock,1,1), (self.nthread,1,1), routine_params)
 
