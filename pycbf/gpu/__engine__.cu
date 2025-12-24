@@ -43,8 +43,8 @@ extern "C" {
 
             if ((mm1 == mp0) && (mp0 == mp1) && (mp1 == mp2)) sp1 = 0;
             else {
-                w0  = abs(mp2 - mp1) + abs(mp2 + mp1)/2;
-                w1  = abs(mp0 - mm1) + abs(mp0 + mm1)/2;
+                w0  = abs(mp2 - mp1);// + abs(mp2 + mp1)/2;
+                w1  = abs(mp0 - mm1);// + abs(mp0 + mm1)/2;
                 sp1 = (w0 * mp0 + w1 * mp1) / (w0 + w1);
             }
             
@@ -59,8 +59,8 @@ extern "C" {
 
             if ((mm2 == mm1) && (mm1 == mp0) && (mp0 == mp1)) sp0 = 0;
             else {
-                w0  = abs(mp1 - mp0) + abs(mp1 + mp0)/2;
-                w1  = abs(mm1 - mm2) + abs(mm1 + mm2)/2;
+                w0  = abs(mp1 - mp0);// + abs(mp1 + mp0)/2;
+                w1  = abs(mm1 - mm2);// + abs(mm1 + mm2)/2;
                 sp0 = (w0 * mm1 + w1*mp0) / (w0 + w1);
             }
 
@@ -85,15 +85,15 @@ extern "C" {
 
             if ((mm2 == mm1) && (mm1 == mp0) && (mp0 == mp1)) sp0 = 0;
             else {
-                w0  = abs(mp1 - mp0) + abs(mp1 + mp0)/2;
-                w1  = abs(mm1 - mm2) + abs(mm1 + mm2)/2;
+                w0  = abs(mp1 - mp0);// + abs(mp1 + mp0)/2;
+                w1  = abs(mm1 - mm2);// + abs(mm1 + mm2)/2;
                 sp0 = (w0 * mm1 + w1*mp0) / (w0 + w1);
             }
 
             if ((mm1 == mp0) && (mp0 == mp1) && (mp1 == mp2)) sp1 = 0;
             else {
-                w0  = abs(mp2 - mp1) + abs(mp2 + mp1)/2;
-                w1  = abs(mp0 - mm1) + abs(mp0 + mm1)/2;
+                w0  = abs(mp2 - mp1);// + abs(mp2 + mp1)/2;
+                w1  = abs(mp0 - mm1);// + abs(mp0 + mm1)/2;
                 sp1 = (w0 * mp0 + w1*mp1) / (w0 + w1);
             }
         }
