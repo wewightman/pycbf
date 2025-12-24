@@ -1,9 +1,11 @@
+"""All base classes for CPU-based beamformers"""
 from dataclasses import dataclass, field
 from pycbf.__bf_base_classes__ import Tabbed, Beamformer, BeamformerException, __BMFRM_PARAMS__
 from numpy import ndarray
 
 @dataclass(kw_only=True)
 class CPUBeamformer(Beamformer):
+    """Base class for CPU beamformers"""
     t0 : float = field(init=True)
     dt : float = field(init=True)
     nt :   int = field(init=True)
@@ -60,7 +62,7 @@ class CPUBeamformer(Beamformer):
 
 @dataclass(kw_only=True)
 class TabbedBeamformer(Tabbed, CPUBeamformer):
-
+    """Base class for CPU-implemented `Tabbed` beamformers"""
     def __post_init__(self):
         CPUBeamformer.__post_init__(self)
         Tabbed.__post_init__(self)
