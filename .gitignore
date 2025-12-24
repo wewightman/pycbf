@@ -6,3 +6,4 @@ build
 dist
 output
 .ipynb_checkpoints
+!examples/channel_data_exvivo_bovine.h5
