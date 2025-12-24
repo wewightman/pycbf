@@ -58,7 +58,7 @@ irot = 13+18
 print("Starting beamforming")
 tstart = time()
 
-allrf = np.array(rf[irot,:,:,:,:]).transpose(1, 2, 0, 3)
+allrf = cp.ascontiguousarray(cp.array(rf[irot,:,:,:,:]).transpose(1, 2, 0, 3), dtype=np.float32)
 
 pout = cp.zeros((rf.shape[2], rf.shape[3], len(zout), len(xout)), dtype=np.float32)
 
