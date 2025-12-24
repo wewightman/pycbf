@@ -8,11 +8,7 @@ from scipy.signal import hilbert
 from time import time
 from timuscle.dataio import verasonics_loadtrackrf, putdictasHDF5
 
-with open("cupy_module.cu", mode='r') as fp: raw_module = fp.read()
-
-module = cp.RawModule(code=raw_module)
-
-das_bmode_cubic = module.get_function("das_bmode_cubic")
+from pycbf.gpu import das_bmode_cubic
 
 xInfo = np.dtype([('x0', np.float32),('dx', np.float32),('nx', np.int32)])
 RFInfo = np.dtype([('ntx', np.int32),('nrx', np.int32),('ndim', np.int32),('tInfo', xInfo)])
