@@ -1,4 +1,5 @@
 extern "C" {
+    /*
     __global__ void my_linterp(const float x0, const float dx, const int nx, const float* y, const float* xout, const int nxout, float* yout, float fill) 
     {
         int tid = blockDim.x * blockIdx.x + threadIdx.x;
@@ -20,6 +21,7 @@ extern "C" {
         float delta = (xo - xi)/dx;
         yout[tid] = (1-delta) * y[ixo] + delta * y[ixo+1];
     }
+        */
 
     float cube_interp(const float x0, const float dx, const int nx, const float* y, float xout, float fill) 
     {
@@ -122,7 +124,7 @@ extern "C" {
         float dx;
         int nx;
     };
-
+/*
     __global__ void my_cubeterp(const struct xInfo xinfo, const float* y, const float* xout, const int nxout, float* yout, float fill) 
     {
         int tid = blockDim.x * blockIdx.x + threadIdx.x;
@@ -137,7 +139,7 @@ extern "C" {
         yout[1] = xinfo.dx;
         yout[2] = (float) xinfo.nx;
     }
-
+*/
     struct RFInfo {
         int ntx;
         int nrx;
