@@ -1,4 +1,12 @@
 extern "C" {
+    __device__ float sign(float x)
+    { 
+
+        float t = x<0.0f ? -1.0f : 0.0f;
+
+        return x > 0.0f ? 1.0f : t;
+
+    }
 
     /**
      * calc_dmas: This kernel calculate a DMAS image, multiplying and summing along the correlation axis with the option to sum the lags
@@ -15,7 +23,7 @@ extern "C" {
         float*       imout      // the DMAS image - size np or nlag by np depending on sumlags
     )
     {
-        int tpb, ilag, isep, ip, ipout;
+        int tid, tpb, ilag, isep, ip, ipout;
         float product;
 
         // get cuda step sizes
