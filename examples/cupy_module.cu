@@ -173,14 +173,15 @@ extern "C" {
         // if synthetic focal point (diverging or converging waves)
         if (0.0 != ala)
         {
-            if ((0.0 != dof) && (abs(dxproj) < dof/2)) {
+            if ((dof > 1E-9) && (abs(dxproj) <= dof/2)) {
                 *tau = 2.0*(dxproj/dof)*(dxmag/c0) + t0;
                 if (sqrt(abs(dxmag*dxmag - dxproj*dxproj)) <= dof * sin(ala) / 2.0) *apod = 1.0;
                 else *apod = 0.0;
             }
             else {
-                *tau = (dxproj/abs(dxproj)) * (dxmag/c0) + t0;
-                if ((dxmag != 0.0) && (acos(abs(dxproj/dxmag)) > ala)) *apod = 0.0;
+                if (abs(dxproj) > 1E-9) *tau = (dxproj/abs(dxproj)) * (dxmag/c0) + t0;
+                else *tau = t0;
+                if ((abs(dxmag) > 1E-9) && (acos(abs(dxproj/dxmag)) > ala)) *apod = 0.0;
                 else *apod = 1.0;
             }
         }
@@ -291,6 +292,6 @@ extern "C" {
             &taurx, &apodrx
         );
 
-        pout[ip] = (tautx +taurx) * apodtx * apodrx;
+        pout[ip] = (tautx + taurx) * apodtx * apodrx;
     }
 }
