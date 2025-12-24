@@ -1,6 +1,6 @@
 """Base beamforming classes implemented for the GPU"""
 from dataclasses import dataclass, field
-from pycbf.__bf_base_classes__ import Synthetic, Tabbed, Beamformer, BeamformerException, __BMFRM_PARAMS__
+from pycbf.__bf_base_classes__ import Synthetic, Tabbed, Beamformer, BeamformerException, __BMFRM_PARAMS__, __PYCBF_DATATYPE__
 
 from numpy import ndarray as npNDArray
 from cupy  import ndarray as cpNDArray
@@ -50,7 +50,7 @@ class __GPU_Beamformer__(Beamformer):
         else: raise BeamformerException("Type must be 'none', 'tx_only', 'rx_only', or 'tx_and_rx'")
 
         if buffer is None: 
-            pout = cp.zeros(shape, dtype=np.float32)
+            pout = cp.zeros(shape, dtype=__PYCBF_DATATYPE__)
         else: raise Exception("Something is wrong with input buffers")
 
         return pout
@@ -64,14 +64,14 @@ class __GPU_Beamformer__(Beamformer):
 
         # format txrxt based on type and shape
         if isinstance(txrxt, npNDArray):
-            txrxt = cp.ascontiguousarray(cp.array(txrxt), dtype=np.float32)
+            txrxt = cp.ascontiguousarray(cp.array(txrxt), dtype=__PYCBF_DATATYPE__)
             
         elif isinstance(txrxt, cpNDArray):
-            if (txrxt.dtype != np.float32) or (txrxt.dtype != cp.float32):
+            if (txrxt.dtype != __PYCBF_DATATYPE__) or (txrxt.dtype != cp.float32) or (txrxt.dtype != cp.float64):
                 raise BeamformerException("Cupy array dtype must be either cupy or numpy float 32")
             
             if not txrxt.flags['C_CONTIGUOUS']:
-                txrxt = cp.ascontiguousarray(txrxt, dtype=np.float32)
+                txrxt = cp.ascontiguousarray(txrxt, dtype=__PYCBF_DATATYPE__)
 
         else:
             raise BeamformerException("txrxt must be an instance of either a cupy or numpy ndarray but was ", type(txrxt))
@@ -104,26 +104,26 @@ class SyntheticBeamformer(Synthetic, __GPU_Beamformer__):
         Synthetic.__post_init__(self)
         self.__check_indexing_limits__()
 
-        from cupy import array, ascontiguousarray, float32
+        from cupy import array, ascontiguousarray
         from pycbf.gpu.__engines__ import RFInfo
         import numpy as np
 
         params = __BMFRM_PARAMS__[self.id]
 
         # copy TX parameters into shared GPU memory
-        params['ovectx'] = ascontiguousarray(array(self.ovectx), dtype=float32)
-        params['nvectx'] = ascontiguousarray(array(self.nvectx), dtype=float32)
-        params[ 'doftx'] = ascontiguousarray(array(self. doftx), dtype=float32)
-        params[ 'alatx'] = ascontiguousarray(array(self. alatx), dtype=float32)
-        params[  't0tx'] = ascontiguousarray(array(self.  t0tx), dtype=float32)
+        params['ovectx'] = ascontiguousarray(array(self.ovectx), dtype=__PYCBF_DATATYPE__)
+        params['nvectx'] = ascontiguousarray(array(self.nvectx), dtype=__PYCBF_DATATYPE__)
+        params[ 'doftx'] = ascontiguousarray(array(self. doftx), dtype=__PYCBF_DATATYPE__)
+        params[ 'alatx'] = ascontiguousarray(array(self. alatx), dtype=__PYCBF_DATATYPE__)
+        params[  't0tx'] = ascontiguousarray(array(self.  t0tx), dtype=__PYCBF_DATATYPE__)
 
         # copy RX parameters into shared GPU memory
-        params['ovecrx'] = ascontiguousarray(array(self.ovecrx), dtype=float32)
-        params['nvecrx'] = ascontiguousarray(array(self.nvecrx), dtype=float32)
-        params[ 'alarx'] = ascontiguousarray(array(self. alarx), dtype=float32)
+        params['ovecrx'] = ascontiguousarray(array(self.ovecrx), dtype=__PYCBF_DATATYPE__)
+        params['nvecrx'] = ascontiguousarray(array(self.nvecrx), dtype=__PYCBF_DATATYPE__)
+        params[ 'alarx'] = ascontiguousarray(array(self. alarx), dtype=__PYCBF_DATATYPE__)
 
         # copy output pnts into shared GPU memory
-        params[  'pnts'] = ascontiguousarray(array(self.  pnts), dtype=float32)
+        params[  'pnts'] = ascontiguousarray(array(self.  pnts), dtype=__PYCBF_DATATYPE__)
 
         # dimensions
         params[  'ntx'] = self.ntx
@@ -154,7 +154,7 @@ class SyntheticBeamformer(Synthetic, __GPU_Beamformer__):
             from pycbf.gpu.__engines__ import das_bmode_synthetic_korder_cubic as gpu_kernel
 
             k = int(self.interp['k'])
-            S = cp.ascontiguousarray(cp.array(__make_S_by_k__(k)), dtype=np.float32)
+            S = cp.ascontiguousarray(cp.array(__make_S_by_k__(k)), dtype=__PYCBF_DATATYPE__)
 
             bf_params = __BMFRM_PARAMS__[self.id]
             routine_params = (
@@ -169,7 +169,7 @@ class SyntheticBeamformer(Synthetic, __GPU_Beamformer__):
                 bf_params['nvecrx'],
                 bf_params[ 'alarx'],
                 np.int32(k), S,
-                np.float32(self.c0),
+                __PYCBF_DATATYPE__(self.c0),
                 np.int64(self.nop),
                 bf_params[  'pnts'],
                 pout,
@@ -204,7 +204,7 @@ class SyntheticBeamformer(Synthetic, __GPU_Beamformer__):
                 bf_params['nvecrx'],
                 bf_params[ 'alarx'],
                 np.int32(interp_keys[self.interp['kind']]),
-                np.float32(self.c0),
+                __PYCBF_DATATYPE__(self.c0),
                 np.int64(self.nop),
                 bf_params[  'pnts'],
                 pout,
@@ -234,7 +234,7 @@ class TabbedBeamformer(Tabbed,__GPU_Beamformer__):
         Tabbed.__post_init__(self)
         self.__check_indexing_limits__()
 
-        from cupy import array, ascontiguousarray, float32
+        from cupy import array, ascontiguousarray
         from pycbf.gpu.__engines__ import RFInfo
         import numpy as np
 
@@ -254,10 +254,10 @@ class TabbedBeamformer(Tabbed,__GPU_Beamformer__):
         params['rfinfo']['tInfo']['nx'] = self.nt
 
         # Copy beamforming tabs to CPU memory
-        params['tautx' ] = ascontiguousarray(array(self.tautx ), dtype=float32)
-        params['taurx' ] = ascontiguousarray(array(self.taurx ), dtype=float32)
-        params['apodtx'] = ascontiguousarray(array(self.apodtx), dtype=float32)
-        params['apodrx'] = ascontiguousarray(array(self.apodrx), dtype=float32)
+        params['tautx' ] = ascontiguousarray(array(self.tautx ), dtype=__PYCBF_DATATYPE__)
+        params['taurx' ] = ascontiguousarray(array(self.taurx ), dtype=__PYCBF_DATATYPE__)
+        params['apodtx'] = ascontiguousarray(array(self.apodtx), dtype=__PYCBF_DATATYPE__)
+        params['apodrx'] = ascontiguousarray(array(self.apodrx), dtype=__PYCBF_DATATYPE__)
 
         __BMFRM_PARAMS__[self.id] = params
     
@@ -272,7 +272,7 @@ class TabbedBeamformer(Tabbed,__GPU_Beamformer__):
             from pycbf.gpu.__engines__ import das_bmode_tabbed_korder_cubic as gpu_kernel
 
             k = int(self.interp['k'])
-            S = cp.ascontiguousarray(cp.array(__make_S_by_k__(k)), dtype=np.float32)
+            S = cp.ascontiguousarray(cp.array(__make_S_by_k__(k)), dtype=__PYCBF_DATATYPE__)
 
             bf_params = __BMFRM_PARAMS__[self.id]
             routine_params = (
