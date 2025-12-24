@@ -1,18 +1,18 @@
 from dataclasses import dataclass, field
-from pycbf.__bf_base_classes__ import Tabbed, Parallelized, BeamformerException, __BMFRM_PARAMS__
+from pycbf.__bf_base_classes__ import Tabbed, Beamformer, BeamformerException, __BMFRM_PARAMS__
 from numpy import ndarray
 
 @dataclass(kw_only=True)
-class TabbedDAS(Tabbed, Parallelized):
+class TabbedBeamformer(Tabbed, Beamformer):
     nwrkr : int = 1
     t0 : float = field(init=True)
     dt : float = field(init=True)
     nt :   int = field(init=True)
     thresh : float = 1E-2
-    interp : dict = field(default_factory=lambda:{"kind":"cubic"})
+    interp : dict = field(default_factory=lambda:{"kind":"nearest", "usf":8})
 
     def __post_init__(self):
-        Parallelized.__post_init__(self)
+        Beamformer.__post_init__(self)
         Tabbed.__post_init__(self)
         from multiprocessing import RawArray
         from ctypes import c_float, POINTER
@@ -119,11 +119,11 @@ class TabbedDAS(Tabbed, Parallelized):
         rxoff = ravel_multi_index((irx,0), (nrx,nop))
         rfoff = ravel_multi_index((itx,irx,0), (ntx,nrx,nt))
 
-        pttx = TabbedDAS.__offset_pnt__(params['pttx'], txoff)
-        ptrx = TabbedDAS.__offset_pnt__(params['ptrx'], rxoff)
-        patx = TabbedDAS.__offset_pnt__(params['patx'], txoff)
-        parx = TabbedDAS.__offset_pnt__(params['parx'], rxoff)
-        psig = TabbedDAS.__offset_pnt__(params['psig'], rfoff)
+        pttx = TabbedBeamformer.__offset_pnt__(params['pttx'], txoff)
+        ptrx = TabbedBeamformer.__offset_pnt__(params['ptrx'], rxoff)
+        patx = TabbedBeamformer.__offset_pnt__(params['patx'], txoff)
+        parx = TabbedBeamformer.__offset_pnt__(params['parx'], rxoff)
+        psig = TabbedBeamformer.__offset_pnt__(params['psig'], rfoff)
 
         out  = params['results'][iwrkr]
 
@@ -186,10 +186,10 @@ class TabbedDAS(Tabbed, Parallelized):
         # delay and apodize
         iterator = product([self.id], range(self.ntx), range(self.nrx))
         if self.nwrkr > 1:
-            self.pool.starmap(TabbedDAS.__beamform_single__, iterator)
+            self.pool.starmap(TabbedBeamformer.__beamform_single__, iterator)
         else:
             for id, itx, irx in iterator:
-                TabbedDAS.__beamform_single__(id, itx, irx)
+                TabbedBeamformer.__beamform_single__(id, itx, irx)
 
 
         temp = array([params['results'][id][:self.nop] for id in range(self.nwrkr)])
@@ -198,40 +198,3 @@ class TabbedDAS(Tabbed, Parallelized):
 
     def __del__(self):
         del __BMFRM_PARAMS__[self.id]
-
-@dataclass(kw_only=True)
-class TabbedDAS_RxSeparate(TabbedDAS):
-        
-    def __call__(self, txrxt:ndarray):
-        from numpy import array, sum, ascontiguousarray
-        from itertools import product
-        from ctypes import memmove, c_float, POINTER, sizeof
-
-        # ensure input data meets data specs
-        if txrxt.shape != (self.ntx, self.nrx, self.nt):
-            raise BeamformerException(f"Input data must be {self.ntx} by {self.nrx} by {self.nt}")
-        
-        params = __BMFRM_PARAMS__[self.id]
-
-        rf = ascontiguousarray(txrxt, dtype=c_float).ctypes.data_as(POINTER(c_float))
-
-        #for ii, rf in enumerate(txrxt.flatten()): params['psig'][ii] = rf
-        memmove(params['psig'], rf, sizeof(c_float)*txrxt.size)
-
-        # delay, apodize, and sum all transmissions but keep receive elements separate
-        if self.nwrkr > 1:
-            rxtraces = []
-            for irx in range(self.nrx):
-                self.__zero_buffers__()
-                self.pool.starmap(TabbedDAS_RxSeparate.__beamform_single__, product([self.id], range(self.ntx), [irx]))
-                temp = array([params['results'][id][:self.nop] for id in range(self.nwrkr)])
-                rxtraces.append(array(sum(temp, axis=0), copy=True))
-        else:
-            rxtraces = []
-            for irx in range(self.nrx):
-                self.__zero_buffers__()
-                for id, itx in product([self.id], range(self.ntx)):
-                    TabbedDAS_RxSeparate.__beamform_single__(id, itx, irx)
-                rxtraces.append(array(params['results'][0][:self.nop], copy=True))
-
-        return array(rxtraces)

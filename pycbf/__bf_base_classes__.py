@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import ClassVar
+from typing import ClassVar, Literal
 from numpy import ndarray
 import logging
 logger = logging.getLogger(__name__)
@@ -104,22 +104,18 @@ class Synthetic():
         self.ndimp  = ndimp
 
 @dataclass(kw_only=True)
-class Parallelized():
+class Beamformer():
     nbf : ClassVar[int] = 0
     id  : int = field(init=False)
+    interp : dict = field(default_factory=lambda:{"kind":"cubic"})
+    sumtype : Literal['none', 'tx_only', 'rx_only', 'tx_and_rx'] = 'tx_and_rx'
 
     def __post_init__(self):
-        self.id = Parallelized.nbf
-        Parallelized.nbf += 1
+        self.id = Beamformer.nbf
+        Beamformer.nbf += 1
 
         __BMFRM_PARAMS__[self.id] = {}
 
-@dataclass(kw_only=True)
-class InterpAndSumTyped():
-    interp : dict = field(init=True)
-    sumtype : str = 'tx_and_rx'
-
-    def __post_init__(self):
         self.__check_interp__()
         self.__check_sumtype__()
     
@@ -134,7 +130,7 @@ class InterpAndSumTyped():
         if self.sumtype not in valid_keys: raise BeamformerException(err_msg)
 
     def __check_interp__(self):
-        valid_kinds = ["nearest", "linear", "akima", "makima", "korder_cubic"]
+        valid_kinds = ["nearest", "linear", "akima", "makima", "korder_cubic", "cubic"]
         kind = self.interp.get('kind', None)
         if (kind is None) or (kind not in valid_kinds): 
             err_msg = f"interp['kind'] was {kind} but must be one of the following: "
@@ -144,11 +140,14 @@ class InterpAndSumTyped():
 
             raise BeamformerException(err_msg)
         
-        if kind == 'nearest':
-            usf = self.interp.get("usf", None)
-            if usf is None: self.interp['usf'] = 1
-            elif (usf < 1): raise BeamformerException("'usf' for interp kind 'nearest' must be an interger greater than 1")
         elif kind == 'korder_cubic':
             k = self.interp.get("k", None)
             if k is None: self.interp['k'] = 4
             if (k < 4) or (k%2 != 0): raise BeamformerException("'k' for interp kind 'korder_cubic' must be at least four and even")
+
+        elif kind == 'cubic': pass
+
+        else:
+            usf = self.interp.get("usf", None)
+            if usf is None: self.interp['usf'] = 1
+            elif (usf < 1): raise BeamformerException(f"'usf' for interp kind '{self.interp['kind']}' must be an interger greater than 1")

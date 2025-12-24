@@ -16,3 +16,4 @@ RFInfo = np.dtype([('ntx', np.int32),('nrx', np.int32),('ndim', np.int32),('tInf
 das_bmode_synthetic_korder_cubic = module.get_function("das_bmode_synthetic_korder_cubic")
 das_bmode_synthetic_multi_interp = module.get_function("das_bmode_synthetic_multi_interp")
 das_bmode_tabbed_korder_cubic = module.get_function("das_bmode_tabbed_korder_cubic")
+das_bmode_tabbed_multi_interp = module.get_function("das_bmode_tabbed_multi_interp")

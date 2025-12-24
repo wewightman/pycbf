@@ -551,7 +551,7 @@ extern "C" {
     }
 
     /**
-     * ddas_bmode_synthetic_numti_interp: beamform a DAS bmode using a synthetic point approach and korder cubic interpolation
+     * ddas_bmode_synthetic_multi_interp: beamform a DAS bmode using a synthetic point approach and korder cubic interpolation
      * 
      * RF channel data parameters:
      *   rfinfo: information about the rfdata
@@ -710,17 +710,6 @@ extern "C" {
         irx = (tid / np) % rfinfo.nrx;
         ip  = tid % np; 
 
-        
-        /*
-
-                apodtx[itx*np + ip] * apodrx[irx*np + ip] * akima_interp(
-                    rfinfo.tInfo.x0, rfinfo.tInfo.dx, rfinfo.tInfo.nx, 
-                    &rfdata[itx*rfinfo.nrx*rfinfo.tInfo.nx + irx*rfinfo.tInfo.nx], 
-                    tautx[itx*np + ip] + taurx[irx*np + ip], 0.0
-                )
-        
-        */
-
         // If valid, add the beamformed and apodized value
         if (0 != apodtx[itx*np + ip] * apodrx[irx*np + ip])
         {
@@ -736,6 +725,84 @@ extern "C" {
                     rfinfo.tInfo.x0, rfinfo.tInfo.dx, rfinfo.tInfo.nx, 
                     &rfdata[itx*rfinfo.nrx*rfinfo.tInfo.nx + irx*rfinfo.tInfo.nx], 
                     S, k,
+                    tautx[itx*np + ip] + taurx[irx*np + ip], 0.0
+                ) 
+            );
+        } 
+    }
+
+    /**
+     * das_bmode_tabbed_multi_interp: beamform a DAS bmode using precomputed delay tabs
+     * 
+     * RF channel data parameters:
+     *   rfinfo: information about the rfdata
+     *   rfdata: grid of rf data in the shape ntx by nrx by nt (stored in tInfo)
+     * 
+     * Transmit parameters:
+     *   tautx: the transmit delay tabs - in the shape ntx by np
+     *   apodtx: the transmit apodizations - in the shape of ntx by np
+     * 
+     * Receive parameters:
+     *   taurx: the recieve delay tabs - in the shape nrx by np
+     *   apodrx: the recieve apodizations - in the shape of nrx by np
+     * 
+     * Interpolation parameters:
+     *   inter_flag: integer flag indicating what interpolation type to use
+     *          - (0) nearest neighbor interpolation
+     *          - (1) linear interpolation
+     *          - (2) akima interpolation
+     *          - (3) modified akima (makima) interpolation
+     * 
+     * Field parameters:
+     *   np: the number of recon points
+     *   pvec: the location of each recon point
+     *   pout: a buffer of length np, np*tx, np*rx, or np*tx*rx depending on output flag
+     *   flag: int flag indicating if...
+     *          - (0) not summing acros tx and rx
+     *          - (1) summing across tx events only
+     *          - (2) summing across rx events only
+     *          - (3) summing across tx and rx events
+     */
+    __global__ 
+    void das_bmode_tabbed_multi_interp(
+        const struct RFInfo rfinfo, const float* rfdata, 
+        const float* tautx, const float* apodtx,
+        const float* taurx, const float* apodrx,
+        const int interp_flag,
+        const int np, float* pout, 
+        const int flag
+    )
+    {
+        int tpb, bpg, tid, itx, irx, ip, ipout;
+
+        // get cuda step sizes
+        tpb = blockDim.x * blockDim.y * blockDim.z; // threads per block
+
+        // Unique thread ID
+        tid = threadIdx.x + threadIdx.y * blockDim.x + threadIdx.z * blockDim.x * blockDim.y;
+        tid += tpb * blockIdx.x + tpb * blockIdx.y * gridDim.x + tpb * blockIdx.z * gridDim.x * gridDim.y;
+
+        if (tid >= rfinfo.ntx * rfinfo.nrx * np) return;
+
+        // calculate the transmit, recieve, and recon point indices for the thread we are working with
+        itx = tid / (rfinfo.nrx * np);
+        irx = (tid / np) % rfinfo.nrx;
+        ip  = tid % np; 
+
+        // If valid, add the beamformed and apodized value
+        if (0 != apodtx[itx*np + ip] * apodrx[irx*np + ip])
+        {
+            // calculate the index to save to based on the flag
+            if      (0 == flag) ipout = ip + np*itx*irx;
+            else if (1 == flag) ipout = ip + np*irx;
+            else if (2 == flag) ipout = ip + np*itx;
+            else                ipout = ip;
+
+            atomicAdd(
+                &pout[ipout],        
+                apodtx[itx*np + ip] * apodrx[irx*np + ip] * jumpTable[interp_flag](
+                    rfinfo.tInfo.x0, rfinfo.tInfo.dx, rfinfo.tInfo.nx, 
+                    &rfdata[itx*rfinfo.nrx*rfinfo.tInfo.nx + irx*rfinfo.tInfo.nx], 
                     tautx[itx*np + ip] + taurx[irx*np + ip], 0.0
                 ) 
             );

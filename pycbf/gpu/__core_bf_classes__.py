@@ -1,19 +1,37 @@
 from dataclasses import dataclass, field
-from pycbf.__bf_base_classes__ import Synthetic, Tabbed, Parallelized, BeamformerException, __BMFRM_PARAMS__
+from pycbf.__bf_base_classes__ import Synthetic, Tabbed, Beamformer, BeamformerException, __BMFRM_PARAMS__
 
 from numpy import ndarray as npNDArray
 from cupy  import ndarray as cpNDArray
 
 @dataclass(kw_only=True)
-class SyntheticDAS(Synthetic, Parallelized):
+class GPUBeamformer(Beamformer):
     t0 : float = field(init=True)
     dt : float = field(init=True)
     nt :   int = field(init=True)
-    c0 : float = field(init=True)
+
     nthread : int = 512
+    interp : dict = field(default_factory=lambda:{"kind":"korder_cubic", "k":16})
 
     def __post_init__(self):
-        Parallelized.__post_init__(self)
+        Beamformer.__post_init__(self)
+
+    def __check_or_init_buffer__(self, buffer : cpNDArray | None = None) -> cpNDArray:
+        """Validate input buffer and make sure it is the right size for the given sumtype"""
+        import cupy as cp
+        import numpy as np
+
+        if buffer is None: pout = cp.zeros(self.nop, dtype=np.float32)
+        else: raise Exception("Something is wrong with input buffers") #pout = buffer
+
+        return pout
+
+@dataclass(kw_only=True)
+class SyntheticBeamformer(Synthetic, GPUBeamformer):
+    c0 : float = field(init=True)
+
+    def __post_init__(self):
+        GPUBeamformer.__post_init__(self)
         Synthetic.__post_init__(self)
 
         from cupy import array, ascontiguousarray, float32
@@ -53,13 +71,82 @@ class SyntheticDAS(Synthetic, Parallelized):
 
         __BMFRM_PARAMS__[self.id] = params
 
-        
+    def __run_interp_type__(self, txrxt : cpNDArray, pout : cpNDArray):
+        """Based on the interpolation type, use the correct engine"""
+        import cupy as cp
+        import numpy as np
+
+        sumtypes = {'none':0, 'tx_only':1, 'rx_only':2, 'tx_and_rx':3}
+
+        if self.interp['kind'] == 'korder_cubic':
+            from pycbf.gpu.__engine__ import das_bmode_synthetic_korder_cubic as gpu_kernel
+
+            k = int(self.interp['k'])
+            S = cp.ascontiguousarray(cp.array(__make_S_by_k__(k)), dtype=np.float32)
+
+            bf_params = __BMFRM_PARAMS__[self.id]
+            routine_params = (
+                bf_params['rfinfo'],
+                txrxt,
+                bf_params['ovectx'],
+                bf_params['nvectx'],
+                bf_params[  't0tx'],
+                bf_params[ 'alatx'],
+                bf_params[ 'doftx'],
+                bf_params['ovecrx'],
+                bf_params['nvecrx'],
+                bf_params[ 'alarx'],
+                np.int32(k), S,
+                np.float32(self.c0),
+                np.int32(self.nop),
+                bf_params[  'pnts'],
+                pout,
+                np.int32(sumtypes[self.sumtype])
+            )
+
+            nblock = np.int32(np.ceil(self.ntx * self.nrx * self.nop / self.nthread))
+
+            gpu_kernel((nblock,1,1), (self.nthread,1,1), routine_params)
+
+        elif self.interp['kind'] == "cubic":
+            raise NotImplementedError("Ideal cubic interpolation has not been implemented")
+
+        else:
+            from pycbf.gpu.__engine__ import das_bmode_synthetic_multi_interp as gpu_kernel
+
+            interp_keys = {"nearest":0, "linear":1, "akima":2, "makima":3}
+
+            usf = int(self.interp['usf'])
+            if usf > 1: raise NotImplementedError("upsampling has not been implemented")
+                
+            bf_params = __BMFRM_PARAMS__[self.id]
+            routine_params = (
+                bf_params['rfinfo'],
+                txrxt,
+                bf_params['ovectx'],
+                bf_params['nvectx'],
+                bf_params[  't0tx'],
+                bf_params[ 'alatx'],
+                bf_params[ 'doftx'],
+                bf_params['ovecrx'],
+                bf_params['nvecrx'],
+                bf_params[ 'alarx'],
+                np.int32(interp_keys[self.interp['kind']]),
+                np.float32(self.c0),
+                np.int32(self.nop),
+                bf_params[  'pnts'],
+                pout,
+                np.int32(sumtypes[self.sumtype])
+            )
+
+            nblock = np.int32(np.ceil(self.ntx * self.nrx * self.nop / self.nthread))
+
+            gpu_kernel((nblock,1,1), (self.nthread,1,1), routine_params)
 
     def __call__(self, txrxt : cpNDArray | npNDArray, out_as_numpy : bool = True, buffer : cpNDArray | None = None) -> cpNDArray | npNDArray:
         """Beamform txrxt tensor """
         import cupy as cp
         import numpy as np
-        from pycbf.gpu.__engine__ import das_bmode_cubic_synthetic as gpu_kernel
 
         if isinstance(txrxt, npNDArray):
             txrxt = cp.ascontiguousarray(cp.array(txrxt), dtype=np.float32)
@@ -73,29 +160,9 @@ class SyntheticDAS(Synthetic, Parallelized):
             if not txrxt.flags['C_CONTIGUOUS']:
                 txrxt = cp.ascontiguousarray(txrxt, dtype=np.float32)
 
-        if buffer is None: pout = cp.zeros(self.nop, dtype=np.float32)
-        else: raise Exception("Something is wrong with input buffers") #pout = buffer
-
-        bf_params = __BMFRM_PARAMS__[self.id]
-        routine_params = (
-            bf_params['rfinfo'],
-            txrxt,
-            bf_params['ovectx'],
-            bf_params['nvectx'],
-            bf_params[  't0tx'],
-            bf_params[ 'alatx'],
-            bf_params[ 'doftx'],
-            bf_params['ovecrx'],
-            bf_params['nvecrx'],
-            bf_params[ 'alarx'],
-            np.float32(self.c0),
-            np.int32(self.nop),
-            bf_params[  'pnts'],
-            pout
-        )
-
-        nblock = np.int32(np.ceil(self.ntx * self.nrx * self.nop / self.nthread))
-        gpu_kernel((nblock,1,1), (self.nthread,1,1), routine_params)
+        pout = self.__check_or_init_buffer__(buffer)
+        
+        self.__run_interp_type__(txrxt, pout)
 
         if out_as_numpy: return cp.asnumpy(pout)
         else: return pout
@@ -110,15 +177,10 @@ class SyntheticDAS(Synthetic, Parallelized):
         del __BMFRM_PARAMS__[self.id]
 
 @dataclass(kw_only=True)
-class TabbedDAS(Tabbed, Parallelized):
-    t0 : float = field(init=True)
-    dt : float = field(init=True)
-    nt :   int = field(init=True)
-    thresh : float = 1E-2
-    nthread : int = 512
+class TabbedBeamformer(Tabbed,GPUBeamformer):
 
     def __post_init__(self):
-        Parallelized.__post_init__(self)
+        GPUBeamformer.__post_init__(self)
         Tabbed.__post_init__(self)
 
         from cupy import array, ascontiguousarray, float32
@@ -130,7 +192,6 @@ class TabbedDAS(Tabbed, Parallelized):
 
         # copy tx/rx/output point dimensions
         params['nop']    = self.nop
-        params['thresh'] = self.thresh
 
         # make struct describing data
         params['rfinfo'] = np.zeros(1, dtype=RFInfo)
@@ -148,12 +209,71 @@ class TabbedDAS(Tabbed, Parallelized):
         params['apodrx'] = ascontiguousarray(array(self.apodrx), dtype=float32)
 
         __BMFRM_PARAMS__[self.id] = params
+    
+    def __run_interp_type__(self, txrxt : cpNDArray, pout : cpNDArray):
+        """Based on the interpolation type, use the correct engine"""
+        import cupy as cp
+        import numpy as np
+
+        sumtypes = {'none':0, 'tx_only':1, 'rx_only':2, 'tx_and_rx':3}
+
+        if self.interp['kind'] == 'korder_cubic':
+            from pycbf.gpu.__engine__ import das_bmode_tabbed_korder_cubic as gpu_kernel
+
+            k = int(self.interp['k'])
+            S = cp.ascontiguousarray(cp.array(__make_S_by_k__(k)), dtype=np.float32)
+
+            bf_params = __BMFRM_PARAMS__[self.id]
+            routine_params = (
+                bf_params['rfinfo'],
+                txrxt,
+                bf_params['tautx'],
+                bf_params['apodtx'],
+                bf_params['taurx'],
+                bf_params['apodrx'],
+                np.int32(k), S,
+                np.int32(self.nop),
+                pout,
+                np.int32(sumtypes[self.sumtype])
+            )
+
+            nblock = np.int32(np.ceil(self.ntx * self.nrx * self.nop / self.nthread))
+
+            gpu_kernel((nblock,1,1), (self.nthread,1,1), routine_params)
+
+        elif self.interp['kind'] == "cubic":
+            raise NotImplementedError("Ideal cubic interpolation has not been implemented")
+
+        else:
+            from pycbf.gpu.__engine__ import das_bmode_tabbed_multi_interp as gpu_kernel
+
+            interp_keys = {"nearest":0, "linear":1, "akima":2, "makima":3}
+
+            usf = int(self.interp['usf'])
+            if usf > 1: raise NotImplementedError("upsampling has not been implemented")
+                
+            bf_params = __BMFRM_PARAMS__[self.id]
+            routine_params = (
+                bf_params['rfinfo'],
+                txrxt,
+                bf_params['tautx'],
+                bf_params['apodtx'],
+                bf_params['taurx'],
+                bf_params['apodrx'],
+                np.int32(interp_keys[self.interp['kind']]),
+                np.int32(self.nop),
+                pout,
+                np.int32(sumtypes[self.sumtype])
+            )
+
+            nblock = np.int32(np.ceil(self.ntx * self.nrx * self.nop / self.nthread))
+
+            gpu_kernel((nblock,1,1), (self.nthread,1,1), routine_params)
 
     def __call__(self, txrxt : cpNDArray | npNDArray, out_as_numpy : bool = True, buffer : cpNDArray | None = None) -> cpNDArray | npNDArray:
 
         import cupy as cp
         import numpy as np
-        from pycbf.gpu.__engine__ import das_bmode_tabbed_korder_cubic as gpu_kernel
 
         if isinstance(txrxt, npNDArray):
             txrxt = cp.ascontiguousarray(cp.array(txrxt), dtype=np.float32)
@@ -167,29 +287,9 @@ class TabbedDAS(Tabbed, Parallelized):
             if not txrxt.flags['C_CONTIGUOUS']:
                 txrxt = cp.ascontiguousarray(txrxt, dtype=np.float32)
 
-        if buffer is None: pout = cp.zeros(self.nop, dtype=np.float32)
-        else: raise Exception("Something is wrong with input buffers") #pout = buffer
-
-        k = 16
-        S = cp.ascontiguousarray(cp.array(__make_S_by_k__(k)), dtype=np.float32)
-
-        bf_params = __BMFRM_PARAMS__[self.id]
-        routine_params = (
-            bf_params['rfinfo'],
-            txrxt,
-            bf_params['tautx'],
-            bf_params['apodtx'],
-            bf_params['taurx'],
-            bf_params['apodrx'],
-            np.int32(k), S,
-            np.int32(self.nop),
-            pout,
-            np.int32(3)
-        )
-
-        nblock = np.int32(np.ceil(self.ntx * self.nrx * self.nop / self.nthread))
-
-        gpu_kernel((nblock,1,1), (self.nthread,1,1), routine_params)
+        pout = self.__check_or_init_buffer__(buffer)
+        
+        self.__run_interp_type__(txrxt, pout)
 
         if out_as_numpy: return cp.asnumpy(pout)
         else: return pout
