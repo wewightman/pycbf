@@ -83,6 +83,47 @@ def calc_tx_tabs_and_apods_divergent_2D(steers, r0, ctx, cm, xele, xout, zout):
 
     return tautx, apodtx
 
+def calc_tx_tabs_and_apods_focused_2D(steers, r0, ctx, cm, xele, xout, zout):
+    """Calcualte the transmit delay tabs for each pixel using a homogeneous speed of sound
+
+    This method assumes all elements are usedin transmision
+    
+    # Parameters:
+    - `steers`: the steering angle of the synthetic source in radians
+    - `r0`: the radius off the synthetic focal spot in meters (assumed to be negative)
+    - `ctx`: the transmit speed of sound in m/s
+    - `cm`: the speed of sound in the media in m/s
+    - `xele`: the x coordinate of the center of each transmit element in m
+    - `xout`: the x coordinate of the output grid in m
+    - `zout`: the z coordinate of the output grid in m
+
+    # Returns:
+    - `tautx`: the transmit delay tabs for each output pixel
+    - `apodtx`: the transmit apodization for each output pixel
+    """
+    import numpy as np
+
+    from pycbf.helpers.__full_aperture_2D__ import calc_tx_synthetic_points_focused_2D
+
+    if ctx != cm: raise Exception("Global SOS correction has not been implemented for divergent wave imaging")
+
+    # calculate synthetic point parameters - makes it easier to calculate the delay tabs directly
+    ovectx, nvectx, t0tx, _, alatx = calc_tx_synthetic_points_focused_2D(steers, ctx, cm, xele, r0)
+
+    #   coordinates of output grid
+    XOUT, ZOUT = np.meshgrid(xout, zout, indexing='ij')
+    P = np.array([XOUT.flatten(), ZOUT.flatten()]).T # Nout by 2
+
+    dX = P[None,:,:] - ovectx[:,None,:]
+    dX_proj = np.sum(dX * nvectx[:,None,:], axis=-1)
+    dX_mag  = np.linalg.norm(dX, axis=-1)
+    tautx = np.sign(dX_proj) * dX_mag/cm + t0tx[:,None]
+
+    print(alatx, nvectx.shape)
+    dX_mag[dX_mag < 1E-12] = 1E-12
+    apodtx = np.arccos(np.abs(dX_proj)/dX_mag) < alatx[:,None]
+    return tautx, apodtx
+
 def calc_tx_tabs_and_apods_pw_2D(steers, ctx, cm, xele, xout, zout):
     """Make delay tabs and apodizations for a 2D linear array
     
@@ -150,7 +191,7 @@ def make_tabs_and_apods_2D(steers, r0, ctx, cm, xele, xout, zout, fnum):
     import numpy as np
 
     if r0 > 0: 
-        raise Exception("Focused transmit beamforming is not yet implemented")
+        tautx, apodtx = calc_tx_tabs_and_apods_focused_2D(steers, r0, ctx, cm, xele, xout, zout)
     elif r0 == 0: 
         tautx, apodtx = calc_tx_tabs_and_apods_pw_2D(steers, ctx, cm, xele, xout, zout)
     else: 
@@ -224,6 +265,53 @@ def calc_tx_synthetic_points_pw_2D(steers, ctx, cm, xele, rpw:float=-10):
 
     return ovectx, nvectx, t0tx, doftx, alatx
 
+def calc_tx_synthetic_points_focused_2D(steers, ctx, cm, xele, rpw):
+    """Make delay tabs and apodizations for a 2D linear array
+    
+    # Parameters
+    - `steers`: steering angles in radians
+    - `ctx`: assumed speed of spound on transmission in m/s
+    - `cm`: speed of sound in the medium
+    - `xele`: lateral position of the elements in meters
+    - `r0`: radius fro origin of probe
+
+    # Returns
+    - `ovectx`: the origin of the syntehtic point source
+    - `nvectx`: the normal vector of the synthetic point source
+    - `t0tx`: the time intercept of the synthetic point source
+    - `doftx`: the depth of field around the DOF to use linear delay tabs
+    - `alatx`: the angular aceptance reltive to the normal vector
+    """
+
+    import numpy as np
+
+    # Change the angle of the plane waves to do global SOS correction 
+    if cm != ctx: raise NotImplementedError("Speed of sound correction has not yet been implemented for synthetic point datasets")
+
+    # calcualte point origins for the sources
+    ovectx = rpw * np.array([np.sin(steers), np.cos(steers)]).T
+
+    # calcualte minimum distance from synthetic point to aperture
+    dxmax = np.max(np.hypot(xele[None,:] - ovectx[:,0,None], ovectx[:,1,None]), axis=1)
+
+    # calculate the time at which the wave crosses the synthetic point source
+    t0tx = dxmax/cm
+
+    alneg = np.atan2(ovectx[:,0] - xele[0], ovectx[:,1])
+    alpos = np.atan2(ovectx[:,0] - xele[-1], ovectx[:,1])
+    print(alneg, alpos)
+
+    alatx = -(alpos - alneg)/2
+    alsteers = (alpos + alneg)/2
+
+    # calculate normal vector of point source
+    nvectx = np.array([np.sin(alsteers), np.cos(alsteers)]).T
+
+    # depth of field around the point source to consider
+    doftx = np.zeros(len(t0tx), dtype=np.float32)
+
+    return ovectx, nvectx, t0tx, doftx, alatx
+
 def calc_tx_synthetic_points_divergent_2D(steers, ctx, cm, xele, rpw):
     """Make delay tabs and apodizations for a 2D linear array
     
@@ -246,7 +334,6 @@ def calc_tx_synthetic_points_divergent_2D(steers, ctx, cm, xele, rpw):
 
     # Change the angle of the plane waves to do global SOS correction 
     if cm != ctx: raise NotImplementedError("Speed of sound correction has not yet been implemented for synthetic point datasets")
-    if rpw >= 0: raise Exception("Padius must ")
 
     # calcualte point origins for the sources
     ovectx = rpw * np.array([np.sin(steers), np.cos(steers)]).T
@@ -299,8 +386,9 @@ def make_synthetic_points_2D(steers, r0, ctx, cm, xele, xout, zout, fnum):
     Px, Pz = np.meshgrid(xout, zout, indexing='ij')
     pvec = np.ascontiguousarray(np.array([Px.flatten(), Pz.flatten()]).T)
 
-    if r0 == 0: ovectx, nvectx, t0tx, doftx, alatx = calc_tx_synthetic_points_pw_2D(steers, ctx, cm, xele)
+    if  r0 == 0: ovectx, nvectx, t0tx, doftx, alatx = calc_tx_synthetic_points_pw_2D(steers, ctx, cm, xele)
     elif r0 < 0: ovectx, nvectx, t0tx, doftx, alatx = calc_tx_synthetic_points_divergent_2D(steers, ctx, cm, xele, r0)
+    else:        ovectx, nvectx, t0tx, doftx, alatx = calc_tx_synthetic_points_focused_2D(steers, ctx, cm, xele, r0)
 
     ovecrx, nvecrx, alarx = calc_rx_synthetic_points(xele, fnum)
 
