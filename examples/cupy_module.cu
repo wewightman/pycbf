@@ -292,6 +292,7 @@ extern "C" {
             &taurx, &apodrx
         );
 
-        pout[ip] = (tautx + taurx) * apodtx * apodrx;
+        if (0 == apodtx * apodrx) pout[ip] += 0.0;
+        else pout[ip] += apodtx * apodrx * cube_interp(rfinfo.tInfo.x0, rfinfo.tInfo.dx, rfinfo.tInfo.nx, &rfdata[itx*rfinfo.nrx*rfinfo.tInfo.nx + irx*rfinfo.tInfo.nx], tautx + taurx, 0.0);
     }
 }
