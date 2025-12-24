@@ -356,8 +356,8 @@ extern "C" {
      * RFInfo: struct defining the meadata of RF data
      */
     struct RFInfo {
-        int ntx;            // the number of transmit events
-        int nrx;            // the number of recieve events
+        long long ntx;            // the number of transmit events
+        long long nrx;            // the number of recieve events
         int ndim;           // the number of dimensions to beamform over
         struct xInfo tInfo; // the sampling information about the time vector
     };
@@ -487,11 +487,11 @@ extern "C" {
         const float* ovectx, const float* nvectx, const float* t0tx, const float* alatx, const float* doftx, 
         const float* ovecrx, const float* nvecrx, const float* alarx,
         const float k, const float* S,
-        const float c0, const int np, const float* pvec, float* pout,
+        const float c0, const long long np, const float* pvec, float* pout,
         const int flag
     )
     {
-        int tpb, bpg, tid, itx, irx, ip, ipout;
+        long long tpb, bpg, tid, itx, irx, ip, ipout;
         float tautx, apodtx, taurx, apodrx;
 
         // get cuda step sizes
@@ -594,11 +594,11 @@ extern "C" {
         const float* ovectx, const float* nvectx, const float* t0tx, const float* alatx, const float* doftx, 
         const float* ovecrx, const float* nvecrx, const float* alarx,
         const int interp_flag,
-        const float c0, const int np, const float* pvec, float* pout,
+        const float c0, const long long np, const float* pvec, float* pout,
         const int flag
     )
     {
-        int tpb, bpg, tid, itx, irx, ip, ipout;
+        long long tpb, bpg, tid, itx, irx, ip, ipout;
         float tautx, apodtx, taurx, apodrx;
 
         // get cuda step sizes
@@ -693,11 +693,11 @@ extern "C" {
         const float* tautx, const float* apodtx,
         const float* taurx, const float* apodrx,
         const int k, const float* S,
-        const int np, float* pout, 
+        const long long np, float* pout, 
         const int flag
     )
     {
-        int tpb, bpg, tid, itx, irx, ip, ipout;
+        long long tpb, bpg, tid, itx, irx, ip, ipout;
 
         // get cuda step sizes
         tpb = blockDim.x * blockDim.y * blockDim.z; // threads per block
@@ -773,11 +773,11 @@ extern "C" {
         const float* tautx, const float* apodtx,
         const float* taurx, const float* apodrx,
         const int interp_flag,
-        const int np, float* pout, 
+        const long long np, float* pout, 
         const int flag
     )
     {
-        int tpb, bpg, tid, itx, irx, ip, ipout;
+        long long tpb, bpg, tid, itx, irx, ip, ipout;
 
         // get cuda step sizes
         tpb = blockDim.x * blockDim.y * blockDim.z; // threads per block

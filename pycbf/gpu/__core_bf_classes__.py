@@ -21,7 +21,7 @@ class __GPU_Beamformer__(Beamformer):
 
     def __check_indexing_limits__(self):
         ntxrxp = self.ntx*self.nrx*self.nop
-        ntxrxp_max = 2**31 - 1
+        ntxrxp_max = 2**63 - 1
         if ntxrxp > ntxrxp_max:
             raise BeamformerException(
                 f"Too many pixels {self.nop} were requested for {self.ntx} tx and {self.nrx} rx events on a int32 based GPU. "
@@ -170,7 +170,7 @@ class SyntheticBeamformer(Synthetic, __GPU_Beamformer__):
                 bf_params[ 'alarx'],
                 np.int32(k), S,
                 np.float32(self.c0),
-                np.int32(self.nop),
+                np.int64(self.nop),
                 bf_params[  'pnts'],
                 pout,
                 np.int32(sumtypes[self.sumtype])
@@ -205,7 +205,7 @@ class SyntheticBeamformer(Synthetic, __GPU_Beamformer__):
                 bf_params[ 'alarx'],
                 np.int32(interp_keys[self.interp['kind']]),
                 np.float32(self.c0),
-                np.int32(self.nop),
+                np.int64(self.nop),
                 bf_params[  'pnts'],
                 pout,
                 np.int32(sumtypes[self.sumtype])
@@ -282,7 +282,7 @@ class TabbedBeamformer(Tabbed,__GPU_Beamformer__):
                 bf_params['taurx'],
                 bf_params['apodrx'],
                 np.int32(k), S,
-                np.int32(self.nop),
+                np.int64(self.nop),
                 pout,
                 np.int32(sumtypes[self.sumtype])
             )
@@ -311,7 +311,7 @@ class TabbedBeamformer(Tabbed,__GPU_Beamformer__):
                 bf_params['taurx'],
                 bf_params['apodrx'],
                 np.int32(interp_keys[self.interp['kind']]),
-                np.int32(self.nop),
+                np.int64(self.nop),
                 pout,
                 np.int32(sumtypes[self.sumtype])
             )
