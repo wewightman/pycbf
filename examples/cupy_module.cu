@@ -1,40 +1,29 @@
 extern "C" {
-    /*
-    __global__ void my_linterp(const float x0, const float dx, const int nx, const float* y, const float* xout, const int nxout, float* yout, float fill) 
-    {
-        int tid = blockDim.x * blockIdx.x + threadIdx.x;
-        if (tid >= nxout) return;
-                                
-        float xn = x0 + dx * (nx-1);
-        float xo = xout[tid];
-        
-        if (xo == xn) {
-            yout[tid] = y[nx-1];
-            return;
-        } else if ((xo < x0) || (xo > xn)) {
-            yout[tid] = fill;
-            return;
-        }
-                                
-        int ixo = (int) ((xo - x0)/dx);
-        float xi = x0 + ixo * dx;
-        float delta = (xo - xi)/dx;
-        yout[tid] = (1-delta) * y[ixo] + delta * y[ixo+1];
-    }
-        */
 
-    float cube_interp(const float x0, const float dx, const int nx, const float* y, float xout, float fill) 
+    /**
+     * cube_interp: subeic interpolation assuming regular spacing
+     */
+    float cube_interp(
+        const float x0,     // starting position of the regularly spaced coordinate vector
+        const float dx,     // spacing of the coordinate vector
+        const int nx,       // number of points in the coordinate vector
+        const float* y,     // values of of the function sampled on x
+        float xout,         // coordintate to interpolate at
+        float fill          // value to fill if out of bounds
+    ) 
     {
         float xn = x0 + dx * (nx-1);
         
+        // boundary condition (bc) - exactly last sampled point
         if (xout == xn) return y[nx-1];
+
+        // bc - out of bounds, use fill value
         else if ((xout < x0) || (xout > xn)) return fill;
                                 
         int ixo = (int) ((xout- x0)/dx);
-
         float mm2, mm1, mp0, mp1, mp2, w0, w1, sp0, sp1, a, b, c, d, delta;
 
-        // boundary conditions (bc)- first point
+        // bc - first point
         if (ixo == 0) {
             mp0 = y[ixo+1] - y[ixo+0];
             mp1 = y[ixo+2] - y[ixo+1];
@@ -119,34 +108,30 @@ extern "C" {
         return a + b * delta + c * delta * delta + d * delta * delta * delta;
     }
 
+    /**
+     * xInfo: struct defining the bounds and spacing of a regularly spaced array
+     */
     struct xInfo {
-        float x0;
-        float dx;
-        int nx;
+        float x0;   // the starting point of the vector
+        float dx;   // the spacing between points
+        int nx;     // the number of points in the vector
     };
-/*
-    __global__ void my_cubeterp(const struct xInfo xinfo, const float* y, const float* xout, const int nxout, float* yout, float fill) 
-    {
-        int tid = blockDim.x * blockIdx.x + threadIdx.x;
-        if (tid >= nxout) return;
-                                
-        yout[tid] = cube_interp(xinfo.x0, xinfo.dx, xinfo.nx, y, xout[tid], 0.0);
-    }
 
-    __global__ void copy_struct(const struct xInfo xinfo, float* yout)
-    {
-        yout[0] = xinfo.x0;
-        yout[1] = xinfo.dx;
-        yout[2] = (float) xinfo.nx;
-    }
-*/
+    /**
+     * RFInfo: struct defining the meadata of RF data
+     */
     struct RFInfo {
-        int ntx;
-        int nrx;
-        int ndim;
-        struct xInfo tInfo;
+        int ntx;            // the number of transmit events
+        int nrx;            // the number of recieve events
+        int ndim;           // the number of dimensions to beamform over
+        struct xInfo tInfo; // the sampling information about the time vector
     };
 
+    /**
+     * calc_tautx_apodtx: calcualte the tx delay tabs and apodizations given transmit data structures
+     * 
+     * tau and apod are pointers to be filled with the correct values
+     */
     void calc_tautx_apodtx(
         const int    ndim,  // 2 or 3 dimensions
         const float*  foc,  // focal spot
@@ -195,6 +180,11 @@ extern "C" {
         }
     }
 
+    /**
+     * calc_taurx_apodrx: calcualte the rx delay tabs and apodizations given recieve data structures
+     * 
+     * tau and apod are pointers to be filled with the correct values
+     */
     void calc_taurx_apodrx(
         const int    ndim,  // 2 or 3 dimensions
         const float* orig,  // origin of receive element
@@ -257,7 +247,7 @@ extern "C" {
     )
     {
         int tpb, bpg, tid, itx, irx, ip;
-        float tautx, apodtx, taurx, apodrx, temp;
+        float tautx, apodtx, taurx, apodrx;
 
         // get cuda step sizes
         tpb = blockDim.x * blockDim.y * blockDim.z; // threads per block
@@ -305,7 +295,7 @@ extern "C" {
     }
 
     /**
-     * das_bmode_rxseparate_cubic: beamform a coherence image keeping rx data separate
+     * das_bmode_rxseparate_cubic: beamform data keeping RX data separate
      * 
      * RF channel data parameters:
      *   rfinfo: information about the rfdata
@@ -326,7 +316,7 @@ extern "C" {
      *   c0: the homogeneos speed of sound in the medium
      *   np: the number of recon points
      *   pvec: the location of each recon point
-     *   pout: a vector length p for the output bmode
+     *   pout: a vector length p x rx for the output bmode
      */
     __global__ 
     void das_bmode_rxseparate_cubic(
