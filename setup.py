@@ -23,6 +23,7 @@ setup(
     packages=['pycbf', 'pycbf.trig'],
     install_requires=reqs,
     dependency_links=reqdeps,
+    license="MIT",
     ext_modules=[trig],
     version="0.0.0"
 )
