@@ -53,7 +53,7 @@ extern "C" {
         product = imsep[ip + np*isep] * imsep[ip + np*(isep + ilag)];
 
         // process the multiplication and sum
-        if      (sumtype == 0) atomicAdd(&imout[ipout], sign(product)*abs(product));
+        if      (sumtype == 0) atomicAdd(&imout[ipout], sign(product)*sqrt(abs(product)));
         else if (sumtype == 1) atomicAdd(&imout[ipout], product);
     }
 }
