@@ -126,6 +126,9 @@ The interpolation method can be user defined with the parameter `interp` - a dic
 
 A comparison of the numerical noise (relative to the ideal cubic interpolation method) of each interpolation method is compared in the [compare interpolation methods notebook](/examples/compare_interpolation_methods.ipynb) in the [examples](/examples/) folder.
 
+## Batching and buffers
+The base GPU beamformers have been updated to allow batch input. Depending on the available VRAM and the interpolation method, batching (inputting the data for multiple beamforming operations simultaneously) can be faster. On my workstation with a moderately equipped GPU, I notice the most extreme differences when using nearest neighbor interpolation. With significantly more VRAM, more compute bandwidth, and higher compute speeds, I expect similar speed ups with other configurations. 
+
 ## References
 1. V. Perrot, M. Polichetti, F. Varray, and D. Garcia, “So you think you can DAS? A viewpoint on delay-and-sum beamforming,” Ultrasonics, vol. 111, p. 106309, Mar. 2021, doi: 10.1016/j.ultras.2020.106309.
 2. W. Long, N. Bottenus, and G. E. Trahey, “Lag-One Coherence as a Metric for Ultrasonic Image Quality,” IEEE Transactions on Ultrasonics, Ferroelectrics, and Frequency Control, vol. 65, no. 10, pp. 1768–1780, Oct. 2018, doi: 10.1109/TUFFC.2018.2855653.
