@@ -216,13 +216,14 @@ class SyntheticBeamformer(Synthetic, __GPU_Beamformer__):
             gpu_kernel((nblock,1,1), (self.nthread,1,1), routine_params)
 
     def __del__(self):
-        params = __BMFRM_PARAMS__[self.id]
+        if hasattr(self, "id"):
+            params = __BMFRM_PARAMS__[self.id]
 
-        # delete globally stored data if it exists
-        for key in ['ovectx', 'nvectx', 'doftx', 'alatx', 't0tx', 'ovecrx', 'nvecrx', 'alarx', 'pnts']:
-            if key in params.keys(): del params[key]
+            # delete globally stored data if it exists
+            for key in ['ovectx', 'nvectx', 'doftx', 'alatx', 't0tx', 'ovecrx', 'nvecrx', 'alarx', 'pnts']:
+                if key in params.keys(): del params[key]
 
-        del __BMFRM_PARAMS__[self.id]
+            del __BMFRM_PARAMS__[self.id]
 
 @dataclass(kw_only=True)
 class TabbedBeamformer(Tabbed,__GPU_Beamformer__):
@@ -321,13 +322,14 @@ class TabbedBeamformer(Tabbed,__GPU_Beamformer__):
             gpu_kernel((nblock,1,1), (self.nthread,1,1), routine_params)
 
     def __del__(self):
-        params = __BMFRM_PARAMS__[self.id]
+        if hasattr(self, "id"):
+            params = __BMFRM_PARAMS__[self.id]
 
-        # delete globally stored data if it exists
-        for key in ['tautx', 'taurx', 'apodtx', 'apodrx']:
-            if key in params.keys(): del params[key]
+            # delete globally stored data if it exists
+            for key in ['tautx', 'taurx', 'apodtx', 'apodrx']:
+                if key in params.keys(): del params[key]
 
-        del __BMFRM_PARAMS__[self.id]
+            del __BMFRM_PARAMS__[self.id]
 
 def __make_S_by_k__(k:int):
     """Make S matrix for korder cubic interpolation - as described in [1]
