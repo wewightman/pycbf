@@ -486,21 +486,22 @@ extern "C" {
         const float* ovectx, const float* nvectx, const float* t0tx, const float* alatx, const float* doftx, 
         const float* ovecrx, const float* nvecrx, const float* alarx,
         const float k, const float* S,
-        const float c0, const int np, const float* pvec, float* pout,
+        const float c0, const unsigned int np, const float* pvec, float* pout,
         const int flag
     )
     {
-        int tpb, bpg, tid, itx, irx, ip, ipout;
+        unsigned int tpb, bpg, tid, itx, irx, ip, ipout;
         float tautx, apodtx, taurx, apodrx;
 
         // get cuda step sizes
-        tpb = blockDim.x * blockDim.y * blockDim.z; // threads per block
+        tpb = ((unsigned int) (blockDim.x)) * ((unsigned int) (blockDim.y)) * ((unsigned int) (blockDim.z)); // threads per block
 
         // Unique thread ID
-        tid = threadIdx.x + threadIdx.y * blockDim.x + threadIdx.z * blockDim.x * blockDim.y;
-        tid += tpb * blockIdx.x + tpb * blockIdx.y * gridDim.x + tpb * blockIdx.z * gridDim.x * gridDim.y;
+        tid  = threadIdx.x + threadIdx.y * blockDim.x;
+        tid += threadIdx.z * blockDim.x * blockDim.y;
+        tid += tpb * (blockIdx.x + blockIdx.y * gridDim.x + blockIdx.z * gridDim.x * gridDim.y);
 
-        if (tid >= rfinfo.ntx * rfinfo.nrx * np) return;
+        if (tid >= (unsigned int)(rfinfo.ntx) * rfinfo.nrx * np) return;
 
         // calculate the transmit, recieve, and recon point indices for the thread we are working with
         itx = tid / (rfinfo.nrx * np);
@@ -592,21 +593,22 @@ extern "C" {
         const float* ovectx, const float* nvectx, const float* t0tx, const float* alatx, const float* doftx, 
         const float* ovecrx, const float* nvecrx, const float* alarx,
         const int interp_flag,
-        const float c0, const int np, const float* pvec, float* pout,
+        const float c0, const unsigned int np, const float* pvec, float* pout,
         const int flag
     )
     {
-        int tpb, bpg, tid, itx, irx, ip, ipout;
+        unsigned int tpb, bpg, tid, itx, irx, ip, ipout;
         float tautx, apodtx, taurx, apodrx;
 
         // get cuda step sizes
-        tpb = blockDim.x * blockDim.y * blockDim.z; // threads per block
+        tpb = ((unsigned int) (blockDim.x)) * ((unsigned int) (blockDim.y)) * ((unsigned int) (blockDim.z)); // threads per block
 
         // Unique thread ID
-        tid = threadIdx.x + threadIdx.y * blockDim.x + threadIdx.z * blockDim.x * blockDim.y;
-        tid += tpb * blockIdx.x + tpb * blockIdx.y * gridDim.x + tpb * blockIdx.z * gridDim.x * gridDim.y;
+        tid  = threadIdx.x + threadIdx.y * blockDim.x;
+        tid += threadIdx.z * blockDim.x * blockDim.y;
+        tid += tpb * (blockIdx.x + blockIdx.y * gridDim.x + blockIdx.z * gridDim.x * gridDim.y);
 
-        if (tid >= rfinfo.ntx * rfinfo.nrx * np) return;
+        if (tid >= (unsigned int)(rfinfo.ntx) * rfinfo.nrx * np) return;
 
         // calculate the transmit, recieve, and recon point indices for the thread we are working with
         itx = tid / (rfinfo.nrx * np);
@@ -690,20 +692,21 @@ extern "C" {
         const float* tautx, const float* apodtx,
         const float* taurx, const float* apodrx,
         const int k, const float* S,
-        const int np, float* pout, 
+        const unsigned int np, float* pout, 
         const int flag
     )
     {
-        int tpb, bpg, tid, itx, irx, ip, ipout;
+        unsigned int tpb, bpg, tid, itx, irx, ip, ipout;
 
         // get cuda step sizes
-        tpb = blockDim.x * blockDim.y * blockDim.z; // threads per block
+        tpb = ((unsigned int) (blockDim.x)) * ((unsigned int) (blockDim.y)) * ((unsigned int) (blockDim.z)); // threads per block
 
         // Unique thread ID
-        tid = threadIdx.x + threadIdx.y * blockDim.x + threadIdx.z * blockDim.x * blockDim.y;
-        tid += tpb * blockIdx.x + tpb * blockIdx.y * gridDim.x + tpb * blockIdx.z * gridDim.x * gridDim.y;
+        tid  = threadIdx.x + threadIdx.y * blockDim.x;
+        tid += threadIdx.z * blockDim.x * blockDim.y;
+        tid += tpb * (blockIdx.x + blockIdx.y * gridDim.x + blockIdx.z * gridDim.x * gridDim.y);
 
-        if (tid >= rfinfo.ntx * rfinfo.nrx * np) return;
+        if (tid >= (unsigned int)(rfinfo.ntx) * rfinfo.nrx * np) return;
 
         // calculate the transmit, recieve, and recon point indices for the thread we are working with
         itx = tid / (rfinfo.nrx * np);
@@ -714,7 +717,7 @@ extern "C" {
         if (0 != apodtx[itx*np + ip] * apodrx[irx*np + ip])
         {
             // calculate the index to save to based on the flag
-            if      (0 == flag) ipout = ip + np*itx*irx;
+            if      (0 == flag) ipout = ip + np*irx + np*itx*rfinfo.nrx;
             else if (1 == flag) ipout = ip + np*irx;
             else if (2 == flag) ipout = ip + np*itx;
             else                ipout = ip;
@@ -769,20 +772,21 @@ extern "C" {
         const float* tautx, const float* apodtx,
         const float* taurx, const float* apodrx,
         const int interp_flag,
-        const int np, float* pout, 
+        const unsigned int np, float* pout, 
         const int flag
     )
     {
-        int tpb, bpg, tid, itx, irx, ip, ipout;
+        unsigned int tpb, bpg, tid, itx, irx, ip, ipout;
 
         // get cuda step sizes
-        tpb = blockDim.x * blockDim.y * blockDim.z; // threads per block
+        tpb = ((unsigned int) (blockDim.x)) * ((unsigned int) (blockDim.y)) * ((unsigned int) (blockDim.z)); // threads per block
 
         // Unique thread ID
-        tid = threadIdx.x + threadIdx.y * blockDim.x + threadIdx.z * blockDim.x * blockDim.y;
-        tid += tpb * blockIdx.x + tpb * blockIdx.y * gridDim.x + tpb * blockIdx.z * gridDim.x * gridDim.y;
+        tid  = threadIdx.x + threadIdx.y * blockDim.x;
+        tid += threadIdx.z * blockDim.x * blockDim.y;
+        tid += tpb * (blockIdx.x + blockIdx.y * gridDim.x + blockIdx.z * gridDim.x * gridDim.y);
 
-        if (tid >= rfinfo.ntx * rfinfo.nrx * np) return;
+        if (tid >= (unsigned int)(rfinfo.ntx) * rfinfo.nrx * np) return;
 
         // calculate the transmit, recieve, and recon point indices for the thread we are working with
         itx = tid / (rfinfo.nrx * np);
