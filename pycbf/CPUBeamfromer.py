@@ -128,8 +128,9 @@ class CPUBeamformer(Tabbed, Parallelized):
             memset(params['results'][iwrkr], 0, int(self.nop*sizeof(params['results'][iwrkr]._type_)))
         
     def __call__(self, txrxt:ndarray):
-        from numpy import array, sum
+        from numpy import array, sum, ascontiguousarray
         from itertools import product
+        from ctypes import memmove, c_float, POINTER, sizeof
 
         # ensure input data meets data specs
         if txrxt.shape != (self.ntx, self.nrx, self.nt):
@@ -137,7 +138,10 @@ class CPUBeamformer(Tabbed, Parallelized):
         
         params = __BMFRM_PARAMS__[self.id]
 
-        for ii, rf in enumerate(txrxt.flatten()): params['psig'][ii] = rf
+        rf = ascontiguousarray(txrxt, dtype=c_float).ctypes.data_as(POINTER(c_float))
+
+        #for ii, rf in enumerate(txrxt.flatten()): params['psig'][ii] = rf
+        memmove(params['psig'], rf, sizeof(c_float)*txrxt.size)
 
         self.__zero_buffers__()
 
