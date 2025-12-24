@@ -289,7 +289,11 @@ extern "C" {
         {
             atomicAdd(
                 &pout[ip], 
-                apodtx * apodrx * cube_interp(rfinfo.tInfo.x0, rfinfo.tInfo.dx, rfinfo.tInfo.nx, &rfdata[itx*rfinfo.nrx*rfinfo.tInfo.nx + irx*rfinfo.tInfo.nx], tautx + taurx, 0.0)
+                apodtx * apodrx * cube_interp(
+                    rfinfo.tInfo.x0, rfinfo.tInfo.dx, rfinfo.tInfo.nx, 
+                    &rfdata[itx*rfinfo.nrx*rfinfo.tInfo.nx + irx*rfinfo.tInfo.nx], 
+                    tautx + taurx, 0.0
+                )
             );
         } 
     }
@@ -368,8 +372,128 @@ extern "C" {
         {
             atomicAdd(
                 &pout[irx * np + ip], 
-                apodtx * apodrx * cube_interp(rfinfo.tInfo.x0, rfinfo.tInfo.dx, rfinfo.tInfo.nx, &rfdata[itx*rfinfo.nrx*rfinfo.tInfo.nx + irx*rfinfo.tInfo.nx], tautx + taurx, 0.0)
+                apodtx * apodrx * cube_interp(
+                    rfinfo.tInfo.x0, rfinfo.tInfo.dx, rfinfo.tInfo.nx, 
+                    &rfdata[itx*rfinfo.nrx*rfinfo.tInfo.nx + irx*rfinfo.tInfo.nx], 
+                    tautx + taurx, 0.0
+                )
             );
         }
+    }
+
+    /**
+     * das_bmode_cubic_tabbed: beamform a DAS bmode using precomputed delay tabs
+     * 
+     * RF channel data parameters:
+     *   rfinfo: information about the rfdata
+     *   rfdata: grid of rf data in the shape ntx by nrx by nt (stored in tInfo)
+     * 
+     * Transmit parameters:
+     *   tautx: the transmit delay tabs - in the shape ntx by np
+     *   apodtx: the transmit apodizations - in the shape of ntx by np
+     * 
+     * Receive parameters:
+     *   taurx: the recieve delay tabs - in the shape nrx by np
+     *   apodrx: the recieve apodizations - in the shape of nrx by np
+     * 
+     * Field parameters:
+     *   np: the number of recon points
+     *   pvec: the location of each recon point
+     *   pout: a vector length p for the output bmode
+     */
+    __global__ 
+    void das_bmode_cubic_tabbed(
+        const struct RFInfo rfinfo, const float* rfdata, 
+        const float* tautx, const float* apodtx,
+        const float* taurx, const float* apodrx,
+        const int np, const float* pvec, float* pout
+    )
+    {
+        int tpb, bpg, tid, itx, irx, ip;
+
+        // get cuda step sizes
+        tpb = blockDim.x * blockDim.y * blockDim.z; // threads per block
+
+        // Unique thread ID
+        tid = threadIdx.x + threadIdx.y * blockDim.x + threadIdx.z * blockDim.x * blockDim.y;
+        tid += tpb * blockIdx.x + tpb * blockIdx.y * gridDim.x + tpb * blockIdx.z * gridDim.x * gridDim.y;
+
+        if (tid >= rfinfo.ntx * rfinfo.nrx * np) return;
+
+        // calculate the transmit, recieve, and recon point indices for the thread we are working with
+        itx = tid / (rfinfo.nrx * np);
+        irx = (tid / np) % rfinfo.nrx;
+        ip  = tid % np; 
+
+        // If valid, add the beamformed and apodized value
+        if (0 != apodtx[itx*np + ip] * apodrx[irx*np + ip])
+        {
+            atomicAdd(
+                &pout[ip], 
+                apodtx[itx*np + ip] * apodrx[irx*np + ip] * cube_interp(
+                    rfinfo.tInfo.x0, rfinfo.tInfo.dx, rfinfo.tInfo.nx, 
+                    &rfdata[itx*rfinfo.nrx*rfinfo.tInfo.nx + irx*rfinfo.tInfo.nx], 
+                    tautx[itx*np + ip] + taurx[irx*np + ip], 0.0
+                )
+            );
+        } 
+    }
+
+        /**
+     * das_bmode_rxseparate_cubic_tabbed: beamform a DAS bmode using precomputed delay tabs and keep rx data separate
+     * 
+     * RF channel data parameters:
+     *   rfinfo: information about the rfdata
+     *   rfdata: grid of rf data in the shape ntx by nrx by nt (stored in tInfo)
+     * 
+     * Transmit parameters:
+     *   tautx: the transmit delay tabs - in the shape ntx by np
+     *   apodtx: the transmit apodizations - in the shape of ntx by np
+     * 
+     * Receive parameters:
+     *   taurx: the recieve delay tabs - in the shape nrx by np
+     *   apodrx: the recieve apodizations - in the shape of nrx by np
+     * 
+     * Field parameters:
+     *   np: the number of recon points
+     *   pvec: the location of each recon point
+     *   pout: a vector length p for the output bmode
+     */
+    __global__ 
+    void das_bmode_rxseparate_cubic_tabbed(
+        const struct RFInfo rfinfo, const float* rfdata, 
+        const float* tautx, const float* apodtx,
+        const float* taurx, const float* apodrx,
+        const int np, const float* pvec, float* pout
+    )
+    {
+        int tpb, bpg, tid, itx, irx, ip;
+
+        // get cuda step sizes
+        tpb = blockDim.x * blockDim.y * blockDim.z; // threads per block
+
+        // Unique thread ID
+        tid = threadIdx.x + threadIdx.y * blockDim.x + threadIdx.z * blockDim.x * blockDim.y;
+        tid += tpb * blockIdx.x + tpb * blockIdx.y * gridDim.x + tpb * blockIdx.z * gridDim.x * gridDim.y;
+
+        if (tid >= rfinfo.ntx * rfinfo.nrx * np) return;
+
+        // calculate the transmit, recieve, and recon point indices for the thread we are working with
+        itx = tid / (rfinfo.nrx * np);
+        irx = (tid / np) % rfinfo.nrx;
+        ip  = tid % np; 
+
+        // If valid, add the beamformed and apodized value
+        if (0 != apodtx[itx*np + ip] * apodrx[irx*np + ip])
+        {
+            atomicAdd(
+                &pout[irx * np + ip], 
+                apodtx[itx*np + ip] * apodrx[irx*np + ip] * cube_interp(
+                    rfinfo.tInfo.x0, rfinfo.tInfo.dx, rfinfo.tInfo.nx, 
+                    &rfdata[itx*rfinfo.nrx*rfinfo.tInfo.nx + irx*rfinfo.tInfo.nx], 
+                    tautx[itx*np + ip] + taurx[irx*np + ip], 0.0
+                )
+            );
+        } 
     }
 }
