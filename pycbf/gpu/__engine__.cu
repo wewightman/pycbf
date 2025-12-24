@@ -1,9 +1,9 @@
 extern "C" {
 
     /**
-     * cube_interp: subeic interpolation assuming regular spacing
+     * makima_interp: cubeic interpolation assuming regular spacing using the makima method
      */
-    float cube_interp(
+    float makima_interp(
         const float x0,     // starting position of the regularly spaced coordinate vector
         const float dx,     // spacing of the coordinate vector
         const int nx,       // number of points in the coordinate vector
@@ -43,8 +43,8 @@ extern "C" {
 
             if ((mm1 == mp0) && (mp0 == mp1) && (mp1 == mp2)) sp1 = 0;
             else {
-                w0  = abs(mp2 - mp1);// + abs(mp2 + mp1)/2;
-                w1  = abs(mp0 - mm1);// + abs(mp0 + mm1)/2;
+                w0  = abs(mp2 - mp1) + abs(mp2 + mp1)/2;
+                w1  = abs(mp0 - mm1) + abs(mp0 + mm1)/2;
                 sp1 = (w0 * mp0 + w1 * mp1) / (w0 + w1);
             }
             
@@ -59,8 +59,8 @@ extern "C" {
 
             if ((mm2 == mm1) && (mm1 == mp0) && (mp0 == mp1)) sp0 = 0;
             else {
-                w0  = abs(mp1 - mp0);// + abs(mp1 + mp0)/2;
-                w1  = abs(mm1 - mm2);// + abs(mm1 + mm2)/2;
+                w0  = abs(mp1 - mp0) + abs(mp1 + mp0)/2;
+                w1  = abs(mm1 - mm2) + abs(mm1 + mm2)/2;
                 sp0 = (w0 * mm1 + w1*mp0) / (w0 + w1);
             }
 
@@ -85,15 +85,123 @@ extern "C" {
 
             if ((mm2 == mm1) && (mm1 == mp0) && (mp0 == mp1)) sp0 = 0;
             else {
-                w0  = abs(mp1 - mp0);// + abs(mp1 + mp0)/2;
-                w1  = abs(mm1 - mm2);// + abs(mm1 + mm2)/2;
+                w0  = abs(mp1 - mp0) + abs(mp1 + mp0)/2;
+                w1  = abs(mm1 - mm2) + abs(mm1 + mm2)/2;
                 sp0 = (w0 * mm1 + w1*mp0) / (w0 + w1);
             }
 
             if ((mm1 == mp0) && (mp0 == mp1) && (mp1 == mp2)) sp1 = 0;
             else {
-                w0  = abs(mp2 - mp1);// + abs(mp2 + mp1)/2;
-                w1  = abs(mp0 - mm1);// + abs(mp0 + mm1)/2;
+                w0  = abs(mp2 - mp1) + abs(mp2 + mp1)/2;
+                w1  = abs(mp0 - mm1) + abs(mp0 + mm1)/2;
+                sp1 = (w0 * mp0 + w1*mp1) / (w0 + w1);
+            }
+        }
+
+        a = y[ixo];
+        b = sp0;
+        c = (3*mp0 - 2*sp0 - sp1)/dx;
+        d = (sp0 + sp1 - 2*mp0)/(dx*dx);
+
+        delta = xout - (x0 + dx * ixo);
+
+        return a + b * delta + c * delta * delta + d * delta * delta * delta;
+    }
+
+    /**
+     * akima_interp: cubic interpolation assuming regular spacing using the akima method
+     */
+    float akima_interp(
+        const float x0,     // starting position of the regularly spaced coordinate vector
+        const float dx,     // spacing of the coordinate vector
+        const int nx,       // number of points in the coordinate vector
+        const float* y,     // values of of the function sampled on x
+        float xout,         // coordintate to interpolate at
+        float fill          // value to fill if out of bounds
+    ) 
+    {
+        float xn = x0 + dx * (nx-1);
+        
+        // boundary condition (bc) - exactly last sampled point
+        if (xout == xn) return y[nx-1];
+
+        // bc - out of bounds, use fill value
+        else if ((xout < x0) || (xout > xn)) return fill;
+                                
+        int ixo = (int) ((xout- x0)/dx);
+        float mm2, mm1, mp0, mp1, mp2, w0, w1, sp0, sp1, a, b, c, d, delta;
+
+        // bc - first point
+        if (ixo == 0) {
+            mp0 = y[ixo+1] - y[ixo+0];
+            mp1 = y[ixo+2] - y[ixo+1];
+
+            sp0 = mp0;
+            sp1 = (mp0 + mp1)/2;
+
+        } 
+        // bc - second point
+        else if (ixo == 1) {
+            mm1 = y[ixo+0] - y[ixo-1];
+            mp0 = y[ixo+1] - y[ixo-0];
+            mp1 = y[ixo+2] - y[ixo+1];
+            mp2 = y[ixo+3] - y[ixo+2];
+
+            sp0 = (mp0 + mm1)/2;
+
+            if ((mm1 == mp0) && (mp0 == mp1) && (mp1 == mp2)) sp1 = 0;
+            else {
+                w0  = abs(mp2 - mp1);
+                w1  = abs(mp0 - mm1);
+                sp1 = (w0 * mp0 + w1 * mp1) / (w0 + w1);
+            }
+            
+
+        } 
+        // bc - third to last point
+        else if (ixo == nx-3) {
+            mm2 = y[ixo+-1] - y[ixo-2];
+            mm1 = y[ixo+0] - y[ixo-1];
+            mp0 = y[ixo+1] - y[ixo-0];
+            mp1 = y[ixo+2] - y[ixo+1];
+
+            if ((mm2 == mm1) && (mm1 == mp0) && (mp0 == mp1)) sp0 = 0;
+            else {
+                w0  = abs(mp1 - mp0);
+                w1  = abs(mm1 - mm2);
+                sp0 = (w0 * mm1 + w1*mp0) / (w0 + w1);
+            }
+
+            sp1 = (mp0 + mp1)/2;
+        }
+        // bc - second to last point
+        else if (ixo == nx-2) {
+            mm1 = y[ixo+0] - y[ixo-1];
+            mp0 = y[ixo+1] - y[ixo+0];
+
+            sp0 = (mm1+mp0)/2;
+
+            sp1 = mp0;
+        }
+        // all other points
+        else {
+            mm2 = y[ixo-1] - y[ixo-2];
+            mm1 = y[ixo+0] - y[ixo-1];
+            mp0 = y[ixo+1] - y[ixo+0];
+            mp1 = y[ixo+2] - y[ixo+1];
+            mp2 = y[ixo+3] - y[ixo+2];
+
+            if ((mm2 == mm1) && (mm1 == mp0) && (mp0 == mp1)) sp0 = 0;
+            else {
+                w0  = abs(mp1 - mp0);
+                w1  = abs(mm1 - mm2);
+                sp0 = (w0 * mm1 + w1*mp0) / (w0 + w1);
+            }
+
+            if ((mm1 == mp0) && (mp0 == mp1) && (mp1 == mp2)) sp1 = 0;
+            else {
+                w0  = abs(mp2 - mp1);
+                w1  = abs(mp0 - mm1);
                 sp1 = (w0 * mp0 + w1*mp1) / (w0 + w1);
             }
         }
@@ -289,7 +397,7 @@ extern "C" {
         {
             atomicAdd(
                 &pout[ip], 
-                apodtx * apodrx * cube_interp(
+                apodtx * apodrx * akima_interp(
                     rfinfo.tInfo.x0, rfinfo.tInfo.dx, rfinfo.tInfo.nx, 
                     &rfdata[itx*rfinfo.nrx*rfinfo.tInfo.nx + irx*rfinfo.tInfo.nx], 
                     tautx + taurx, 0.0
@@ -372,7 +480,7 @@ extern "C" {
         {
             atomicAdd(
                 &pout[irx * np + ip], 
-                apodtx * apodrx * cube_interp(
+                apodtx * apodrx * akima_interp(
                     rfinfo.tInfo.x0, rfinfo.tInfo.dx, rfinfo.tInfo.nx, 
                     &rfdata[itx*rfinfo.nrx*rfinfo.tInfo.nx + irx*rfinfo.tInfo.nx], 
                     tautx + taurx, 0.0
@@ -430,7 +538,7 @@ extern "C" {
         {
             atomicAdd(
                 &pout[ip], 
-                apodtx[itx*np + ip] * apodrx[irx*np + ip] * cube_interp(
+                apodtx[itx*np + ip] * apodrx[irx*np + ip] * akima_interp(
                     rfinfo.tInfo.x0, rfinfo.tInfo.dx, rfinfo.tInfo.nx, 
                     &rfdata[itx*rfinfo.nrx*rfinfo.tInfo.nx + irx*rfinfo.tInfo.nx], 
                     tautx[itx*np + ip] + taurx[irx*np + ip], 0.0
@@ -488,7 +596,7 @@ extern "C" {
         {
             atomicAdd(
                 &pout[irx * np + ip], 
-                apodtx[itx*np + ip] * apodrx[irx*np + ip] * cube_interp(
+                apodtx[itx*np + ip] * apodrx[irx*np + ip] * akima_interp(
                     rfinfo.tInfo.x0, rfinfo.tInfo.dx, rfinfo.tInfo.nx, 
                     &rfdata[itx*rfinfo.nrx*rfinfo.tInfo.nx + irx*rfinfo.tInfo.nx], 
                     tautx[itx*np + ip] + taurx[irx*np + ip], 0.0
