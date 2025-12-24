@@ -444,7 +444,7 @@ extern "C" {
 
         // calculate receive delay tabs and apodization
         *tau = dxmag/c0;
-        if ((dxmag != 0.0) && (acos(abs(dxproj/dxmag)) > ala)) *apod = 0.0;
+        if ((dxmag != 0.0) && (acos(dxproj/dxmag) > ala)) *apod = 0.0;
         else *apod = 1.0;
     }
 
