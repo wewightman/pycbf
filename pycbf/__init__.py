@@ -1,1 +1,2 @@
-from pycbf.Beamformer import Beamformer, __BMFRM_PARAMS__, __BMFRM_DEBUG__
+from pycbf.Beamformer import Beamformer, __BMFRM_PARAMS__
+from pycbf.SimpleBeamformer import SimpleBeamformer
