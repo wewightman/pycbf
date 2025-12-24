@@ -51,10 +51,10 @@ class CPUBeamformer(Tabbed, Parallelized):
 
     @staticmethod
     def __offset_pnt__(pnt, offset:int):
-        from ctypes import sizeof, cast, POINTER
+        from ctypes import sizeof, cast, POINTER, c_void_p
 
         # convert to a void-type pointer object
-        pvoid = cast(pnt, ct.c_void_p)
+        pvoid = cast(pnt, c_void_p)
 
         # calculate the element offset in bytes
         pvoid.value += int(offset * sizeof(pnt._type_))
@@ -70,6 +70,7 @@ class CPUBeamformer(Tabbed, Parallelized):
         """Use the identified beamformer to beamform the aline specified by tx and rx indices"""
         from numpy import ravel_multi_index
         from pycbf.cpu import __cpu_pycbf__
+        from ctypes import c_float, c_int
 
         params = __BMFRM_PARAMS__[id]
 
@@ -96,8 +97,8 @@ class CPUBeamformer(Tabbed, Parallelized):
         out  = params['results'][iwrkr]
 
         __cpu_pycbf__.beamform(
-            ct.c_float(t0), ct.c_float(dt), ct.c_int(nt), psig,
-            ct.c_int(nop), ct.c_float(thr), pttx, patx, ptrx, parx, out
+            c_float(t0), c_float(dt), c_int(nt), psig,
+            c_int(nop), c_float(thr), pttx, patx, ptrx, parx, out
         )
 
     @staticmethod
@@ -136,8 +137,8 @@ class CPUBeamformer(Tabbed, Parallelized):
         from itertools import product
 
         # ensure input data meets data specs
-        if txrxt.shape != (self.ntx, self.nrx, len(t)):
-            raise BeamformerException(f"Input data must be {self.ntx} by {self.nrx} by {len(t)}")
+        if txrxt.shape != (self.ntx, self.nrx, self.nt):
+            raise BeamformerException(f"Input data must be {self.ntx} by {self.nrx} by {self.nt}")
         
         params = __BMFRM_PARAMS__[self.id]
 
