@@ -49,7 +49,7 @@ class Tabbed():
         self.nop = nop
 
 @dataclass(kw_only=True)
-class SynthPointed():    
+class Synthetic():    
     ovectx  : ndarray = field(init=True)    # source point location (ntx by ndim matrix)
     nvectx  : ndarray = field(init=True)    # normal vector of the source point (ntx by ndim matrix)
     doftx   : ndarray = field(init=True)    # depth of field over which to use planar delay tabs around ovec (ntx length vector)

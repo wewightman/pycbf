@@ -23,7 +23,7 @@ setup(
     license="MIT",
     package_data={'pycbf.gpu':["__engine__.cu"]},
     ext_modules=[pycbfcpu],
-    version="0.0.0",
+    version="1.0.0",
     requires=[
         "numpy"
     ]
