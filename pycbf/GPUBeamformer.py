@@ -67,8 +67,9 @@ class GPUBeamformer(SynthPointed, Parallelized):
         else:
             raise BeamformerException("txrxt must be an instance of either a cupy or numpy ndarray but was ", type(txrxt))
         
-        # if isinstance(txrxt, cpNDArray):
-        #     txrxt = cp.ascontiguousarray(txrxt, dtype=np.float32)
+        if isinstance(txrxt, cpNDArray):
+            if not txrxt.flags['C_CONTIGUOUS']:
+                txrxt = cp.ascontiguousarray(txrxt, dtype=np.float32)
 
         if buffer is None: pout = cp.zeros(self.nop)
         else: pout = buffer

@@ -46,8 +46,8 @@ nvecrx = np.array([np.zeros(len(xele)), np.ones(len(xele))]).T
 alarx = np.arctan2(1,2) * np.ones(len(xele), dtype=np.float32)
 
 
-xout = 1E-3*np.linspace(-17.5, 17.5, 201)
-zout = 1E-3*np.arange(25, 35, 0.15/4)
+xout = 1E-3*np.linspace(-17.5, 17.5, 151)
+zout = 1E-3*np.arange(1, 40, 0.15/4)
 Px, Pz = np.meshgrid(xout, zout, indexing='ij')
 pvec = np.array([Px.flatten(), Pz.flatten()]).T
 print(rf.shape, pvec.shape)
@@ -58,7 +58,7 @@ irot = 13+18
 print("Starting beamforming")
 tstart = time()
 
-allrf = cp.ascontiguousarray(cp.array(rf[irot,:,:,:,:]).transpose(1, 2, 0, 3), dtype=np.float32)
+allrf = np.array(rf[irot,:,:,:,:]).transpose(1, 2, 0, 3)
 
 pout = cp.zeros((rf.shape[2], rf.shape[3], len(zout), len(xout)), dtype=np.float32)
 
@@ -78,7 +78,8 @@ for istr in range(3):
             c0 = 1540,
             t0 = t[0],
             dt = t[1] - t[0],
-            nt = len(t)
+            nt = len(t),
+            nthread = 512
         )
     )
 
@@ -86,11 +87,11 @@ for istr in range(3):
 t0rot = time()
 for iim in range(rf.shape[2]):
     for istr in range(3):
-        bmfrms[istr](
+        pout[iim,istr] = bmfrms[istr](
             allrf[iim, istr:istr+1], 
             out_as_numpy=False, 
-            buffer = pout[iim,istr].flatten()
-        )
+            # buffer = pout[iim,istr].flatten()
+        ).reshape(Px.shape[1], Px.shape[0])
 t1rot = time()
 
 print("  ", irot, " ", (t1rot - t0rot)*1E3, " ms")
