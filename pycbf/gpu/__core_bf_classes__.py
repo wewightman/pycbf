@@ -94,7 +94,6 @@ class GPUBeamformer(Beamformer):
 
 @dataclass(kw_only=True)
 class SyntheticBeamformer(Synthetic, GPUBeamformer):
-    c0 : float = field(init=True)
 
     def __post_init__(self):
         GPUBeamformer.__post_init__(self)

@@ -112,6 +112,8 @@ class Synthetic():
     ovecrx  : ndarray = field(init=True)    # location of the recieve sensors (nrx by ndim matrix)
     nvecrx  : ndarray = field(init=True)    # orientation of the recieve sensor (nrx by ndim matrix)
     alarx   : ndarray = field(init=True)    # acceptance angle of the recieve sensor (nrx length vector)
+    
+    c0 : float = field(init=True)           # media SOS 
 
     pnts    : ndarray = field(init=True)    # number of reconstruction points (nop by ndim matrix)
 
