@@ -114,14 +114,16 @@ def calc_tx_tabs_and_apods_focused_2D(steers, r0, ctx, cm, xele, xout, zout):
     XOUT, ZOUT = np.meshgrid(xout, zout, indexing='ij')
     P = np.array([XOUT.flatten(), ZOUT.flatten()]).T # Nout by 2
 
+    # calcualte delay tabs based on synthetic point location and steering angle (encoded in nvec)
     dX = P[None,:,:] - ovectx[:,None,:]
     dX_proj = np.sum(dX * nvectx[:,None,:], axis=-1)
     dX_mag  = np.linalg.norm(dX, axis=-1)
     tautx = np.sign(dX_proj) * dX_mag/cm + t0tx[:,None]
 
-    print(alatx, nvectx.shape)
+    # calculate the mask based on angle between nvec and P-O
     dX_mag[dX_mag < 1E-12] = 1E-12
     apodtx = np.arccos(np.abs(dX_proj)/dX_mag) < alatx[:,None]
+    
     return tautx, apodtx
 
 def calc_tx_tabs_and_apods_pw_2D(steers, ctx, cm, xele, xout, zout):
