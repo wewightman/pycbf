@@ -1,10 +1,6 @@
 extern "C" {
-    __global__ void my_add(const float* x1, const float* x2, float* y) {
-        int tid = blockDim.x * blockIdx.x + threadIdx.x;
-        y[tid] = x1[tid] + 2*x2[tid]-10;
-    }
-
-    __global__ void my_linterp(const float x0, const float dx, const int nx, const float* y, const float* xout, const int nxout, float* yout, float fill) {
+    __global__ void my_linterp(const float x0, const float dx, const int nx, const float* y, const float* xout, const int nxout, float* yout, float fill) 
+    {
         int tid = blockDim.x * blockIdx.x + threadIdx.x;
         if (tid >= nxout) return;
                                 
@@ -25,22 +21,14 @@ extern "C" {
         yout[tid] = (1-delta) * y[ixo] + delta * y[ixo+1];
     }
 
-    __global__ void my_cubeterp(const float x0, const float dx, const int nx, const float* y, const float* xout, const int nxout, float* yout, float fill) {
-        int tid = blockDim.x * blockIdx.x + threadIdx.x;
-        if (tid >= nxout) return;
-                                
+    float cube_interp(const float x0, const float dx, const int nx, const float* y, float xout, float fill) 
+    {
         float xn = x0 + dx * (nx-1);
-        float xo = xout[tid];
         
-        if (xo == xn) {
-            yout[tid] = y[nx-1];
-            return;
-        } else if ((xo < x0) || (xo > xn)) {
-            yout[tid] = fill;
-            return;
-        }
+        if (xout == xn) return y[nx-1];
+        else if ((xout < x0) || (xout > xn)) return fill;
                                 
-        int ixo = (int) ((xo - x0)/dx);
+        int ixo = (int) ((xout- x0)/dx);
 
         float mm2, mm1, mp0, mp1, mp2, w0, w1, sp0, sp1, a, b, c, d, delta;
 
@@ -60,11 +48,15 @@ extern "C" {
             mp1 = y[ixo+2] - y[ixo+1];
             mp2 = y[ixo+3] - y[ixo+2];
 
-            sp0 = (mp0 + mp1)/2;
+            sp0 = (mp0 + mm1)/2;
 
-            w0  = abs(mp2 - mp1) + abs(mp2 + mp1)/2;
-            w1  = abs(mp0 - mm1) + abs(mp0 + mp1)/2;
-            sp1 = (w0 * mp0 + w1 * mp1) / (w0 + w1);
+            if ((mm1 == mp0) && (mp0 == mp1) && (mp1 == mp2)) sp1 = 0;
+            else {
+                w0  = abs(mp2 - mp1) + abs(mp2 + mp1)/2;
+                w1  = abs(mp0 - mm1) + abs(mp0 + mm1)/2;
+                sp1 = (w0 * mp0 + w1 * mp1) / (w0 + w1);
+            }
+            
 
         } 
         // bc - third to last point
@@ -74,9 +66,12 @@ extern "C" {
             mp0 = y[ixo+1] - y[ixo-0];
             mp1 = y[ixo+2] - y[ixo+1];
 
-            w0  = abs(mp1 - mp0) + abs(mp1 + mp0)/2;
-            w1  = abs(mm1 - mm2) + abs(mm1 + mm2)/2;
-            sp0 = (w0 * mm1 + w1*mp0) / (w0 + w1);
+            if ((mm2 == mm1) && (mm1 == mp0) && (mp0 == mp1)) sp0 = 0;
+            else {
+                w0  = abs(mp1 - mp0) + abs(mp1 + mp0)/2;
+                w1  = abs(mm1 - mm2) + abs(mm1 + mm2)/2;
+                sp0 = (w0 * mm1 + w1*mp0) / (w0 + w1);
+            }
 
             sp1 = (mp0 + mp1)/2;
         }
@@ -97,13 +92,19 @@ extern "C" {
             mp1 = y[ixo+2] - y[ixo+1];
             mp2 = y[ixo+3] - y[ixo+2];
 
-            w0  = abs(mp1 - mp0) + abs(mp1 + mp0)/2;
-            w1  = abs(mm1 - mm2) + abs(mm1 + mm2)/2;
-            sp0 = (w0 * mm1 + w1*mp0) / (w0 + w1);
+            if ((mm2 == mm1) && (mm1 == mp0) && (mp0 == mp1)) sp0 = 0;
+            else {
+                w0  = abs(mp1 - mp0) + abs(mp1 + mp0)/2;
+                w1  = abs(mm1 - mm2) + abs(mm1 + mm2)/2;
+                sp0 = (w0 * mm1 + w1*mp0) / (w0 + w1);
+            }
 
-            w0  = abs(mp2 - mp1) + abs(mp2 + mp1)/2;
-            w1  = abs(mp0 - mm1) + abs(mp0 + mm1)/2;
-            sp1 = (w0 * mp0 + w1*mp1) / (w0 + w1);
+            if ((mm1 == mp0) && (mp0 == mp1) && (mp1 == mp2)) sp1 = 0;
+            else {
+                w0  = abs(mp2 - mp1) + abs(mp2 + mp1)/2;
+                w1  = abs(mp0 - mm1) + abs(mp0 + mm1)/2;
+                sp1 = (w0 * mp0 + w1*mp1) / (w0 + w1);
+            }
         }
 
         a = y[ixo];
@@ -111,8 +112,16 @@ extern "C" {
         c = (3*mp0 - 2*sp0 - sp1)/dx;
         d = (sp0 + sp1 - 2*mp0)/(dx*dx);
 
-        delta = xout[tid] - (x0 + dx * ixo);
+        delta = xout - (x0 + dx * ixo);
 
-        yout[tid] = a + b * delta + c * delta * delta + d * delta * delta * delta;
+        return a + b * delta + c * delta * delta + d * delta * delta * delta;
+    }
+
+    __global__ void my_cubeterp(const float x0, const float dx, const int nx, const float* y, const float* xout, const int nxout, float* yout, float fill) 
+    {
+        int tid = blockDim.x * blockIdx.x + threadIdx.x;
+        if (tid >= nxout) return;
+                                
+        yout[tid] = cube_interp(x0, dx, nx, y, xout[tid], 0.0);
     }
 }
