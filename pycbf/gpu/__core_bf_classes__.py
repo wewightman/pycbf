@@ -96,6 +96,7 @@ class __GPU_Beamformer__(Beamformer):
 
             # validate that input buffor is correct format or make new one
             pout = __GPU_Beamformer__.__check_or_init_buffer__(self, buffer)
+
         elif cp.ndim(txrxt) == 4:
             if txrxt.shape[1:] != (self.ntx, self.nrx, self.nt):
                 shapestr = ""
@@ -233,6 +234,7 @@ class SyntheticBeamformer(Synthetic, __GPU_Beamformer__):
                 np.int64(self.nop),
                 bf_params[  'pnts'],
                 pout,
+                np.int64(nframes),
                 np.int32(sumtypes[self.sumtype])
             )
 
@@ -293,6 +295,9 @@ class TabbedBeamformer(Tabbed,__GPU_Beamformer__):
 
         sumtypes = {'none':0, 'tx_only':1, 'rx_only':2, 'tx_and_rx':3}
 
+        if   cp.ndim(txrxt) == 3: nframes = 1
+        elif cp.ndim(txrxt) == 4: nframes = txrxt.shape[0]
+
         if self.interp['kind'] == 'korder_cubic':
             from pycbf.gpu.__engines__ import das_bmode_tabbed_korder_cubic as gpu_kernel
 
@@ -310,6 +315,7 @@ class TabbedBeamformer(Tabbed,__GPU_Beamformer__):
                 np.int32(k), S,
                 np.int64(self.nop),
                 pout,
+                np.int64(nframes),
                 np.int32(sumtypes[self.sumtype])
             )
 
@@ -339,6 +345,7 @@ class TabbedBeamformer(Tabbed,__GPU_Beamformer__):
                 np.int32(interp_keys[self.interp['kind']]),
                 np.int64(self.nop),
                 pout,
+                np.int64(nframes),
                 np.int32(sumtypes[self.sumtype])
             )
 

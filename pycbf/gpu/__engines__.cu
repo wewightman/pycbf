@@ -368,8 +368,7 @@ extern "C" {
      */
     struct RFInfo {
         long long ntx;      // the number of transmit events
-        long long nrx;      // the number of recieve events
-        long long nfr;      // the number of frames in the dataset      
+        long long nrx;      // the number of recieve events   
         int ndim;           // the number of dimensions to beamform over
         struct xInfo tInfo; // the sampling information about the time vector
     };
@@ -535,22 +534,10 @@ extern "C" {
         ip   = (tid % tpf) % np;
 
         // calculate the number of output pixels for a given frame and the output pixel index
-        // if no summing (all tx-rx events kept separate)...
-        if      (0 == flag) {
-            ipout = ifrm*tpf + np*(irx + itx*rfinfo.nrx) + ip;
-        }
-        // else if summing tx events only...
-        else if (1 == flag) {
-            ipout = ifrm*rfinfo.nrx*np + np*irx + ip;
-        }
-        // else if summing across rx events only...
-        else if (2 == flag) {
-            ipout = ifrm*rfinfo.ntx*np + np*itx + ip;
-        }
-        // else sum across all tx-rx events
-        else                {
-            ipout = ifrm*np + ip;
-        }
+        if      (0 == flag) ipout = ifrm*tpf           + ip + np*(irx + itx*rfinfo.nrx);
+        else if (1 == flag) ipout = ifrm*rfinfo.nrx*np + ip + np*irx;
+        else if (2 == flag) ipout = ifrm*rfinfo.ntx*np + ip + np*itx;
+        else                ipout = ifrm*np            + ip;
 
         calc_tautx_apodtx(
             rfinfo.ndim, 
@@ -581,7 +568,11 @@ extern "C" {
                 &pout[ipout], 
                 apodtx * apodrx * korder_cubic_interp(
                     rfinfo.tInfo.x0, rfinfo.tInfo.dx, rfinfo.tInfo.nx, 
-                    &rfdata[ifrm*rfinfo.ntx*rfinfo.nrx*rfinfo.tInfo.nx + itx*rfinfo.nrx*rfinfo.tInfo.nx + irx*rfinfo.tInfo.nx], 
+                    &rfdata[
+                        ifrm*rfinfo.ntx*rfinfo.nrx*rfinfo.tInfo.nx + 
+                        itx*rfinfo.nrx*rfinfo.tInfo.nx + 
+                        irx*rfinfo.tInfo.nx
+                    ], 
                     S, k,
                     tautx + taurx, 0.0
                 )
@@ -619,6 +610,7 @@ extern "C" {
      *   np: the number of recon points
      *   pvec: the location of each recon point
      *   pout: a buffer of length np, np*tx, np*rx, or np*tx*rx depending on output flag
+     *   nfr:  the number of frames being beamformed simultaneously
      *   flag: int flag indicating if...
      *          - (0) not summing acros tx and rx
      *          - (1) summing across tx events only
@@ -632,10 +624,10 @@ extern "C" {
         const pycbf_dtype* ovecrx, const pycbf_dtype* nvecrx, const pycbf_dtype* alarx,
         const int interp_flag,
         const pycbf_dtype c0, const long long np, const pycbf_dtype* pvec, pycbf_dtype* pout,
-        const int flag
+        const long long nfr, const int flag
     )
     {
-        long long tpb, bpg, tid, itx, irx, ip, ipout;
+        long long tpb, tpf, bpg, tid, ifrm, itx, irx, ip, ipout;
         pycbf_dtype tautx, apodtx, taurx, apodrx;
 
         // get cuda step sizes
@@ -646,12 +638,20 @@ extern "C" {
         tid += threadIdx.z * blockDim.x * blockDim.y;
         tid += tpb * (blockIdx.x + blockIdx.y * gridDim.x + blockIdx.z * gridDim.x * gridDim.y);
 
-        if (tid >= rfinfo.ntx * rfinfo.nrx * np) return;
+        if (tid >= nfr * rfinfo.ntx * rfinfo.nrx * np) return;
 
         // calculate the transmit, recieve, and recon point indices for the thread we are working with
-        itx = tid / (rfinfo.nrx * np);
-        irx = (tid / np) % rfinfo.nrx;
-        ip  = tid % np;
+        tpf  = np * rfinfo.nrx * rfinfo.ntx; // calculate the number of threads per frame
+        ifrm = tid / tpf;
+        itx  = (tid % tpf) / (rfinfo.nrx * np);
+        irx  = ((tid % tpf) / np) % rfinfo.nrx;
+        ip   = (tid % tpf) % np;
+
+        // calculate the number of output pixels for a given frame and the output pixel index
+        if      (0 == flag) ipout = ifrm*tpf           + ip + np*(irx + itx*rfinfo.nrx);
+        else if (1 == flag) ipout = ifrm*rfinfo.nrx*np + ip + np*irx;
+        else if (2 == flag) ipout = ifrm*rfinfo.ntx*np + ip + np*itx;
+        else                ipout = ifrm*np            + ip;
 
         calc_tautx_apodtx(
             rfinfo.ndim, 
@@ -677,18 +677,16 @@ extern "C" {
         // If valid, add the beamformed and apodized value
         if (abs(apodtx * apodrx) > __PYCBF_GPU_APOD_THRESH__)
         {
-            // calculate the index to save to based on the flag
-            if      (0 == flag) ipout = ip + np*(irx + itx*rfinfo.nrx);
-            else if (1 == flag) ipout = ip + np*irx;
-            else if (2 == flag) ipout = ip + np*itx;
-            else                ipout = ip;
-
             // interpolate and add interpolated value to ipout
             atomicAdd(
                 &pout[ipout], 
                 apodtx * apodrx * jumpTable[interp_flag](
                     rfinfo.tInfo.x0, rfinfo.tInfo.dx, rfinfo.tInfo.nx, 
-                    &rfdata[itx*rfinfo.nrx*rfinfo.tInfo.nx + irx*rfinfo.tInfo.nx], 
+                    &rfdata[
+                        ifrm*rfinfo.ntx*rfinfo.nrx*rfinfo.tInfo.nx + 
+                        itx*rfinfo.nrx*rfinfo.tInfo.nx + 
+                        irx*rfinfo.tInfo.nx
+                    ], 
                     tautx + taurx, 0.0
                 )
             );
@@ -718,6 +716,7 @@ extern "C" {
      *   np: the number of recon points
      *   pvec: the location of each recon point
      *   pout: a buffer of length np, np*tx, np*rx, or np*tx*rx depending on output flag
+     *   nfr:  the number of frames to beamform simultaneously
      *   flag: int flag indicating if...
      *          - (0) not summing acros tx and rx
      *          - (1) summing across tx events only
@@ -731,10 +730,10 @@ extern "C" {
         const pycbf_dtype* taurx, const pycbf_dtype* apodrx,
         const int k, const pycbf_dtype* S,
         const long long np, pycbf_dtype* pout, 
-        const int flag
+        const long long nfr, const int flag
     )
     {
-        long long tpb, bpg, tid, itx, irx, ip, ipout;
+        long long tpb, tpf, bpg, tid, ifrm, itx, irx, ip, ipout;
 
         // get cuda step sizes
         tpb = blockDim.x * blockDim.y * blockDim.z; // threads per block
@@ -744,27 +743,33 @@ extern "C" {
         tid += threadIdx.z * blockDim.x * blockDim.y;
         tid += tpb * (blockIdx.x + blockIdx.y * gridDim.x + blockIdx.z * gridDim.x * gridDim.y);
 
-        if (tid >= rfinfo.ntx * rfinfo.nrx * np) return;
+        if (tid >= nfr * rfinfo.ntx * rfinfo.nrx * np) return;
 
         // calculate the transmit, recieve, and recon point indices for the thread we are working with
-        itx = tid / (rfinfo.nrx * np);
-        irx = (tid / np) % rfinfo.nrx;
-        ip  = tid % np; 
+        tpf  = np * rfinfo.nrx * rfinfo.ntx; // calculate the number of threads per frame
+        ifrm = tid / tpf;
+        itx  = (tid % tpf) / (rfinfo.nrx * np);
+        irx  = ((tid % tpf) / np) % rfinfo.nrx;
+        ip   = (tid % tpf) % np;
+
+        // calculate the number of output pixels for a given frame and the output pixel index
+        if      (0 == flag) ipout = ifrm*tpf           + ip + np*(irx + itx*rfinfo.nrx);
+        else if (1 == flag) ipout = ifrm*rfinfo.nrx*np + ip + np*irx;
+        else if (2 == flag) ipout = ifrm*rfinfo.ntx*np + ip + np*itx;
+        else                ipout = ifrm*np            + ip;
 
         // If valid, add the beamformed and apodized value
         if (abs(apodtx[itx*np + ip] * apodrx[irx*np + ip]) > __PYCBF_GPU_APOD_THRESH__)
         {
-            // calculate the index to save to based on the flag
-            if      (0 == flag) ipout = ip + np*(irx + itx*rfinfo.nrx);
-            else if (1 == flag) ipout = ip + np*irx;
-            else if (2 == flag) ipout = ip + np*itx;
-            else                ipout = ip;
-
             atomicAdd(
                 &pout[ipout],        
                 apodtx[itx*np + ip] * apodrx[irx*np + ip] * korder_cubic_interp(
                     rfinfo.tInfo.x0, rfinfo.tInfo.dx, rfinfo.tInfo.nx, 
-                    &rfdata[itx*rfinfo.nrx*rfinfo.tInfo.nx + irx*rfinfo.tInfo.nx], 
+                    &rfdata[
+                        ifrm*rfinfo.ntx*rfinfo.nrx*rfinfo.tInfo.nx + 
+                        itx*rfinfo.nrx*rfinfo.tInfo.nx + 
+                        irx*rfinfo.tInfo.nx
+                    ], 
                     S, k,
                     tautx[itx*np + ip] + taurx[irx*np + ip], 0.0
                 ) 
@@ -798,6 +803,7 @@ extern "C" {
      *   np: the number of recon points
      *   pvec: the location of each recon point
      *   pout: a buffer of length np, np*tx, np*rx, or np*tx*rx depending on output flag
+     *   nfr:  the number of frames to beamform simultaneously
      *   flag: int flag indicating if...
      *          - (0) not summing acros tx and rx
      *          - (1) summing across tx events only
@@ -811,10 +817,10 @@ extern "C" {
         const pycbf_dtype* taurx, const pycbf_dtype* apodrx,
         const int interp_flag,
         const long long np, pycbf_dtype* pout, 
-        const int flag
+        const long long nfr, const int flag
     )
     {
-        long long tpb, bpg, tid, itx, irx, ip, ipout;
+        long long tpb, tpf, bpg, tid, ifrm, itx, irx, ip, ipout;
 
         // get cuda step sizes
         tpb = blockDim.x * blockDim.y * blockDim.z; // threads per block
@@ -824,27 +830,33 @@ extern "C" {
         tid += threadIdx.z * blockDim.x * blockDim.y;
         tid += tpb * (blockIdx.x + blockIdx.y * gridDim.x + blockIdx.z * gridDim.x * gridDim.y);
 
-        if (tid >= rfinfo.ntx * rfinfo.nrx * np) return;
+        if (tid >= nfr * rfinfo.ntx * rfinfo.nrx * np) return;
 
         // calculate the transmit, recieve, and recon point indices for the thread we are working with
-        itx = tid / (rfinfo.nrx * np);
-        irx = (tid / np) % rfinfo.nrx;
-        ip  = tid % np; 
+        tpf  = np * rfinfo.nrx * rfinfo.ntx; // calculate the number of threads per frame
+        ifrm = tid / tpf;
+        itx  = (tid % tpf) / (rfinfo.nrx * np);
+        irx  = ((tid % tpf) / np) % rfinfo.nrx;
+        ip   = (tid % tpf) % np;
+
+        // calculate the number of output pixels for a given frame and the output pixel index
+        if      (0 == flag) ipout = ifrm*tpf           + ip + np*(irx + itx*rfinfo.nrx);
+        else if (1 == flag) ipout = ifrm*rfinfo.nrx*np + ip + np*irx;
+        else if (2 == flag) ipout = ifrm*rfinfo.ntx*np + ip + np*itx;
+        else                ipout = ifrm*np            + ip;
 
         // If valid, add the beamformed and apodized value
         if (abs(apodtx[itx*np + ip] * apodrx[irx*np + ip]) > __PYCBF_GPU_APOD_THRESH__)
         {
-            // calculate the index to save to based on the flag
-            if      (0 == flag) ipout = ip + np*(irx + itx*rfinfo.nrx);
-            else if (1 == flag) ipout = ip + np*irx;
-            else if (2 == flag) ipout = ip + np*itx;
-            else                ipout = ip;
-
             atomicAdd(
                 &pout[ipout],        
                 apodtx[itx*np + ip] * apodrx[irx*np + ip] * jumpTable[interp_flag](
                     rfinfo.tInfo.x0, rfinfo.tInfo.dx, rfinfo.tInfo.nx, 
-                    &rfdata[itx*rfinfo.nrx*rfinfo.tInfo.nx + irx*rfinfo.tInfo.nx], 
+                    &rfdata[
+                        ifrm*rfinfo.ntx*rfinfo.nrx*rfinfo.tInfo.nx + 
+                        itx*rfinfo.nrx*rfinfo.tInfo.nx + 
+                        irx*rfinfo.tInfo.nx
+                    ], 
                     tautx[itx*np + ip] + taurx[irx*np + ip], 0.0
                 ) 
             );
