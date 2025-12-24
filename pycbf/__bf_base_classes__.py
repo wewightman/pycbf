@@ -339,7 +339,6 @@ class GriddedTabbed(Tabbed):
             raise BeamformerException(f"'gridtype' argument for a `GriddedSynthetic` beamformer must be 'cartesian' or 'ray' but was {self.gridtype}")
         if (self.gridtype == "ray") and (self.gridapex is None):
             raise BeamformerException("For `gridtype='ray'`, parameter 'gridapex' must be defined")
-        nop     = int(prod(self.gridnums))
         ndimp   = len(self.gridnums)
 
         # check that all vector inputs are 1D
@@ -350,10 +349,12 @@ class GriddedTabbed(Tabbed):
         allndimp = (len(self.gridorig) == ndimp) and (len(self.griddelt) == ndimp)
         if self.gridapex is not None: allndimp = allndimp and (len(self.gridapex) == ndimp)
 
+        # ensure nop is consistient between normal tabbed and 
+        if self.nop != int(prod(self.gridnums)): 
+            raise BeamformerException(f"The number of points in the tabs ({self.nop}) and the product of points specified in gridnums (prod({str(self.gridnums)}) = {int(prod(self.gridnums))}) do not match")
         if not all1d:
             raise BeamformerException(f"all acceptance angle, depth of field, and t0 vectors must be 1D")
         if not allndimp:
             raise BeamformerException(f"All spatial dimensions must be the same (all 2D or 3D)")
 
-        self.nop    = nop
         self.ndimp  = ndimp
