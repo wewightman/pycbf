@@ -14,7 +14,8 @@ class CPUCoherenceBeamformer(Tabbed, Parallelized):
         Parallelized.__post_init__(self)
         Tabbed.__post_init__(self)
         from multiprocessing import RawArray
-        from ctypes import c_float
+        from ctypes import c_float, POINTER
+        from numpy import ascontiguousarray, zeros
 
         __BMFRM_PARAMS__[self.id] = {}
 
@@ -33,22 +34,37 @@ class CPUCoherenceBeamformer(Tabbed, Parallelized):
         # the ctype being used, might eb flexible in future
         c_type = c_float
 
-        # copy the tabs
-        params['pttx'] = RawArray(c_type, self. tautx.flatten())
-        params['ptrx'] = RawArray(c_type, self. taurx.flatten())
-        params['patx'] = RawArray(c_type, self.apodtx.flatten())
-        params['parx'] = RawArray(c_type, self.apodrx.flatten())
+        if self.nwrkr > 1:
+            # copy the tabs
+            params['pttx'] = RawArray(c_type, self. tautx.flatten())
+            params['ptrx'] = RawArray(c_type, self. taurx.flatten())
+            params['patx'] = RawArray(c_type, self.apodtx.flatten())
+            params['parx'] = RawArray(c_type, self.apodrx.flatten())
 
-        # build an output buffer for each worker
-        params['results'] = {}
-        for ii in range(self.nwrkr):
-            params['results'][ii] = RawArray(c_type, self.nop)
+            # build an output buffer for each worker
+            params['results'] = {}
+            for ii in range(self.nwrkr):
+                params['results'][ii] = RawArray(c_type, self.nop)
 
-        # build the buffer for input RF data
-        params['psig'] = RawArray(c_type, self.nt * self.ntx * self.nrx)
+            # build the buffer for input RF data
+            params['psig'] = RawArray(c_type, self.nt * self.ntx * self.nrx)
 
-        if self.nwrkr > 1: self.__start_pool__()
-        else: params['idx'] = 0
+            self.__start_pool__()
+        else:
+            # copy the tabs
+            params['pttx'] = ascontiguousarray(self. tautx, dtype=c_type).ctypes.data_as(POINTER(c_type))
+            params['ptrx'] = ascontiguousarray(self. taurx, dtype=c_type).ctypes.data_as(POINTER(c_type))
+            params['patx'] = ascontiguousarray(self.apodtx, dtype=c_type).ctypes.data_as(POINTER(c_type))
+            params['parx'] = ascontiguousarray(self.apodrx, dtype=c_type).ctypes.data_as(POINTER(c_type))
+
+            # build an output buffer for each worker
+            params['results'] = {}
+            params['results'][0] = zeros(self.nop, dtype=c_type).ctypes.data_as(POINTER(c_type))
+
+            # build the buffer for input RF data
+            params['psig'] = zeros(self.nt * self.ntx * self.nrx, dtype=c_type).ctypes.data_as(POINTER(c_type))
+
+            params['idx'] = 0
 
     @staticmethod
     def __offset_pnt__(pnt, offset:int):
