@@ -295,4 +295,78 @@ extern "C" {
         if (0 == apodtx * apodrx) pout[ip] += 0.0;
         else pout[ip] += apodtx * apodrx * cube_interp(rfinfo.tInfo.x0, rfinfo.tInfo.dx, rfinfo.tInfo.nx, &rfdata[itx*rfinfo.nrx*rfinfo.tInfo.nx + irx*rfinfo.tInfo.nx], tautx + taurx, 0.0);
     }
+
+    /**
+     * das_bmode_cubic: beamform a DAS bmode 
+     * 
+     * RF channel data parameters:
+     *   rfinfo: information about the rfdata
+     *   rfdata: grid of rf data in the shape ntx by nrx by nt (stored in tInfo)
+     * 
+     * Transmit parameters:
+     *   ovectx: origin of each transmision
+     *   nvectx: normal vector of each of the transmit events
+     *   t0tx: the timepoint at which the wave is at ovectx in each transmit event
+     *   alatx: acceptance angle in radians relative to each nvectx
+     * 
+     * Receive parameters:
+     *   ovecrx: origin of the receive points
+     *   nvecrx: normal vector of each receive element
+     *   alarx:  angular acceptance for each element relative to nvecrx
+     * 
+     * Field parameters:
+     *   c0: the homogeneos speed of sound in the medium
+     *   np: the number of recon points
+     *   pvec: the location of each recon point
+     *   pout: a vector length p for the output bmode
+     */
+    __global__ 
+    void das_bmode_rxseparate_cubic(
+        const struct RFInfo rfinfo, const float* rfdata, 
+        const float* ovectx, const float* nvectx, const float* t0tx, const float* alatx, const float* doftx, 
+        const float* ovecrx, const float* nvecrx, const float* alarx,
+        const float c0, const int np, const float* pvec, float* pout
+    )
+    {
+        int tpb, bpg, tid, itx, irx, ip;
+        float tautx, apodtx, taurx, apodrx;
+
+        // get cuda step sizes
+        tpb = blockDim.x * blockDim.y * blockDim.z; // threads per block
+
+        // Unique thread ID
+        tid = threadIdx.x + threadIdx.y * blockDim.x + threadIdx.z * blockDim.x * blockDim.y;
+        tid += tpb * blockIdx.x + tpb * blockIdx.y * gridDim.x + tpb * blockIdx.z * gridDim.x * gridDim.y;
+
+        if (tid >= rfinfo.ntx * rfinfo.nrx * np) return;
+
+        // calculate the transmit, recieve, and recon point indices for the thread we are working with
+        itx = tid / (rfinfo.nrx * np);
+        irx = (tid / np) % rfinfo.nrx;
+        ip  = tid % np;
+
+        calc_tautx_apodtx(
+            rfinfo.ndim, 
+            &ovectx[itx*rfinfo.ndim], 
+            &nvectx[itx*rfinfo.ndim], 
+            c0, t0tx[itx], 
+            alatx[itx], 
+            doftx[itx], 
+            &pvec[ip*rfinfo.ndim],
+            &tautx, &apodtx
+        );
+
+        calc_taurx_apodrx(
+            rfinfo.ndim, 
+            &ovecrx[irx*rfinfo.ndim], 
+            &nvecrx[irx*rfinfo.ndim], 
+            c0,
+            alarx[irx], 
+            &pvec[ip*rfinfo.ndim],
+            &taurx, &apodrx
+        );
+
+        if (0 == apodtx * apodrx) pout[irx * np + ip] += 0.0;
+        else pout[irx * np + ip] += apodtx * apodrx * cube_interp(rfinfo.tInfo.x0, rfinfo.tInfo.dx, rfinfo.tInfo.nx, &rfdata[itx*rfinfo.nrx*rfinfo.tInfo.nx + irx*rfinfo.tInfo.nx], tautx + taurx, 0.0);
+    }
 }
