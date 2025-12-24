@@ -49,6 +49,7 @@ extern void beamform(
     int nt,
     float * sig,
     int nout,
+    float thresh,
     float * tautx,
     float * apodtx,
     float * taurx,
