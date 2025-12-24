@@ -49,7 +49,7 @@ alarx = np.arctan2(1,2) * np.ones(len(xele), dtype=np.float32)
 xout = 1E-3*np.linspace(-17.5, 17.5, 151)
 zout = 1E-3*np.arange(1, 40, 0.15/4)
 Px, Pz = np.meshgrid(xout, zout, indexing='ij')
-pvec = np.array([Px.flatten(), Pz.flatten()]).T
+pvec = np.ascontiguousarray(np.array([Px.flatten(), Pz.flatten()]).T)
 print(rf.shape, pvec.shape)
 # exit()
 
@@ -58,7 +58,7 @@ irot = 13+18
 print("Starting beamforming")
 tstart = time()
 
-allrf = np.array(rf[irot,:,:,:,:]).transpose(1, 2, 0, 3)
+allrf = np.ascontiguousarray(np.array(rf[irot,:,:,:,:]).transpose(1, 2, 0, 3))
 
 pout = cp.zeros((rf.shape[2], rf.shape[3], len(zout), len(xout)), dtype=np.float32)
 
@@ -91,7 +91,7 @@ for iim in range(rf.shape[2]):
             allrf[iim, istr:istr+1], 
             out_as_numpy=False, 
             # buffer = pout[iim,istr].flatten()
-        ).reshape(Px.shape[1], Px.shape[0])
+        ).reshape(Px.shape[1], Px.shape[0], order='f')
 t1rot = time()
 
 print("  ", irot, " ", (t1rot - t0rot)*1E3, " ms")
