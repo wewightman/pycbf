@@ -61,7 +61,7 @@ rfinfo['tInfo']['nx'] = len(t)
 
 print(rfinfo)
 
-xout = 1E-3*np.linspace(-22.5, 22.5, 501)
+xout = 1E-3*np.linspace(-18, 18, 10*(2*18+1))
 zout = 1E-3*np.arange(1, 40, 0.15/4)
 Px, Pz = np.meshgrid(xout, zout, indexing='ij')
 pvec = cp.ascontiguousarray(cp.array([Px, Pz]).transpose(2, 1, 0), dtype=np.float32)
