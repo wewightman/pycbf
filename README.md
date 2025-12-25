@@ -1,6 +1,8 @@
 # pycbf
 This repository contains extension accelerated beamformers to be used with Python. My goal with this repository is to make an easily interpretable, easy-to-use, flexible, and decently performant set of software beaformers that can be used on (almost) any system.
 
+[![DOI](https://zenodo.org/badge/620429936.svg)](https://doi.org/10.5281/zenodo.18055070)
+
 ## Compilation and Installation
 These scripts should be installable on all systems with pip install.
 
