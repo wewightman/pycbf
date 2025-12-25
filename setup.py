@@ -27,7 +27,7 @@ setup(
     python_requires='>=3.10,<3.14',
     package_data={'pycbf.gpu':["__engines__.cu", "__advanced_engines__.cu"]},
     ext_modules=[pycbfcpu],
-    version="1.0.0",
+    version="1.1.0",
     requires=[
         "numpy",
         "h5py",
