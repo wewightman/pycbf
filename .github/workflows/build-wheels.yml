@@ -32,9 +32,15 @@ jobs:
       - name: Build wheels
         run: python -m cibuildwheel --output-dir "${{ env.CIBW_OUTPUT_DIR }}"
 
-      - name: Inspect wheels
-        run: |
-          ls -lh "${{ env.CIBW_OUTPUT_DIR }}"
+      - name: Inspect wheels (Windows)
+        if: runner.os == 'Windows'
+        run: Get-ChildItem dist | Select-Object Name, @{n='Size';e={$_.Length}}
+        shell: powershell
+
+      - name: Inspect wheels (Unix)
+        if: runner.os != 'Windows'
+        run: ls -lh dist || true
+        shell: bash
 
       - name: Upload wheel artifacts
         uses: actions/upload-artifact@v4
