@@ -26,12 +26,12 @@ else:
 if _pltfm.uname()[0] == "Windows":
     res = glob(os.path.abspath(os.path.join(dirpath, "*.dll")))
     name = res[0]
-elif _pltfm.uname()[0] == "Linux":
+else:# _pltfm.uname()[0] == "Linux":
     res = glob(os.path.abspath(os.path.join(dirpath, "*.so")))
     name = res[0]
-else:
-    res = glob(os.path.abspath(os.path.join(dirpath, "*.dylib")))
-    name = res[0]
+# else:
+#     res = glob(os.path.abspath(os.path.join(dirpath, "*.dylib")))
+#     name = res[0]
 
 # load the c library
 __cpu_pycbf__ = ct.CDLL(name)
