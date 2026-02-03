@@ -2,7 +2,7 @@ name: Build wheels (cibuildwheel)
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, cicd_development]
   pull_request:
 
 env:
