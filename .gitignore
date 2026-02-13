@@ -6,5 +6,6 @@ build
 dist
 output
 .ipynb_checkpoints
-!examples/channel_data*.h5
 .pytest_cache
+!examples/channel_data*.h5
+!tests/data/*.h5
