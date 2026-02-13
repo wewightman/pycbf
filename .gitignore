@@ -7,3 +7,4 @@ dist
 output
 .ipynb_checkpoints
 !examples/channel_data*.h5
+.pytest_cache

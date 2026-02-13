@@ -7,6 +7,7 @@ This doc string indicates the dates that the test data was genrated on, with the
 Dates, user, and reason for regenerating test data:
 - 2026/02/04, Wren Wightman, preliminary generation of test data
 """
+import pytest
 from pytest import mark
 
 __PLOT_RESULTS_TEST_DATA__ = False

@@ -16,6 +16,11 @@ def test_rawmodule_compile_and_run(cupy_available):
 def test_no_fixture_data():
     assert True
 
-def test_loading_the_fixture_data(interpolator_groundtruth_data):
-    tin = interpolator_groundtruth_data['tin']
+def test_loading_the_fixture_data(interpolator_groundtruth_datapath):
+    from pycbf.dataio.__hdf5_engines__ import loadHDF5asdict
+    
+    data = loadHDF5asdict(interpolator_groundtruth_datapath)
+
+    
+
     assert True
