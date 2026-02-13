@@ -43,19 +43,34 @@ class __GPU_Beamformer__(Beamformer):
         import numpy as np
 
         # determine output shape based on summing choice and number of frames
-        if   self.sumtype ==      'none': 
-            if nframes is None: shape = (         self.ntx, self.nrx, self.nop)
-            else:               shape = (nframes, self.ntx, self.nrx, self.nop)
-        elif self.sumtype ==   'tx_only': 
-            if nframes is None: shape = (                   self.nrx, self.nop)
-            else:               shape = (nframes,           self.nrx, self.nop)
-        elif self.sumtype ==   'rx_only': 
-            if nframes is None: shape = (         self.ntx,           self.nop)
-            else:               shape = (nframes, self.ntx,           self.nop)
-        elif self.sumtype == 'tx_and_rx': 
-            if nframes is None: shape =                               self.nop
-            else:               shape = (nframes,                     self.nop)
-        else: raise BeamformerException("Type must be 'none', 'tx_only', 'rx_only', or 'tx_and_rx'")
+        if nframes is None:
+            if   self.sumtype ==      'none': 
+                if nframes is None: shape = (         self.ntx, self.nrx, self.nop)
+                else:               shape = (         self.ntx, self.nrx, self.nop)
+            elif self.sumtype ==   'tx_only': 
+                if nframes is None: shape = (                   self.nrx, self.nop)
+                else:               shape = (                   self.nrx, self.nop)
+            elif self.sumtype ==   'rx_only': 
+                if nframes is None: shape = (         self.ntx,           self.nop)
+                else:               shape = (         self.ntx,           self.nop)
+            elif self.sumtype == 'tx_and_rx': 
+                if nframes is None: shape =                               self.nop
+                else:               shape = (                             self.nop)
+            else: raise BeamformerException("Type must be 'none', 'tx_only', 'rx_only', or 'tx_and_rx'")
+        else:
+            if   self.sumtype ==      'none': 
+                if nframes is None: shape = (         self.ntx, self.nrx, self.nop)
+                else:               shape = (nframes, self.ntx, self.nrx, self.nop)
+            elif self.sumtype ==   'tx_only': 
+                if nframes is None: shape = (                   self.nrx, self.nop)
+                else:               shape = (nframes,           self.nrx, self.nop)
+            elif self.sumtype ==   'rx_only': 
+                if nframes is None: shape = (         self.ntx,           self.nop)
+                else:               shape = (nframes, self.ntx,           self.nop)
+            elif self.sumtype == 'tx_and_rx': 
+                if nframes is None: shape =                               self.nop
+                else:               shape = (nframes,                     self.nop)
+            else: raise BeamformerException("Type must be 'none', 'tx_only', 'rx_only', or 'tx_and_rx'")
 
         if buffer is None: 
             pout = cp.zeros(shape, dtype=__PYCBF_DATATYPE__)
@@ -238,7 +253,7 @@ class SyntheticBeamformer(Synthetic, __GPU_Beamformer__):
                 np.int32(sumtypes[self.sumtype])
             )
 
-            nblock = int(np.ceil(self.ntx * self.nrx * self.nop / self.nthread))
+            nblock = int(np.ceil(nframes * self.ntx * self.nrx * self.nop / self.nthread))
 
             gpu_kernel((nblock,1,1), (self.nthread,1,1), routine_params)
 
@@ -319,7 +334,7 @@ class TabbedBeamformer(Tabbed,__GPU_Beamformer__):
                 np.int32(sumtypes[self.sumtype])
             )
 
-            nblock = int(np.ceil(self.ntx * self.nrx * self.nop / self.nthread))
+            nblock = int(np.ceil(nframes * self.ntx * self.nrx * self.nop / self.nthread))
 
             gpu_kernel((nblock,1,1), (self.nthread,1,1), routine_params)
 
@@ -349,7 +364,7 @@ class TabbedBeamformer(Tabbed,__GPU_Beamformer__):
                 np.int32(sumtypes[self.sumtype])
             )
 
-            nblock = int(np.ceil(self.ntx * self.nrx * self.nop / self.nthread))
+            nblock = int(np.ceil(nframes * self.ntx * self.nrx * self.nop / self.nthread))
 
             gpu_kernel((nblock,1,1), (self.nthread,1,1), routine_params)
 
