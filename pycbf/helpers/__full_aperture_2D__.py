@@ -299,8 +299,8 @@ def calc_tx_synthetic_points_focused_2D(steers, ctx, cm, xele, rpw):
     # calculate the time at which the wave crosses the synthetic point source
     t0tx = dxmax/cm
 
-    alneg = np.atan2(ovectx[:,0] - xele[0], ovectx[:,1])
-    alpos = np.atan2(ovectx[:,0] - xele[-1], ovectx[:,1])
+    alneg = np.arctan2(ovectx[:,0] - xele[0], ovectx[:,1])
+    alpos = np.arctan2(ovectx[:,0] - xele[-1], ovectx[:,1])
 
     alatx = -(alpos - alneg)/2
     alsteers = (alpos + alneg)/2
@@ -345,8 +345,8 @@ def calc_tx_synthetic_points_divergent_2D(steers, ctx, cm, xele, rpw):
     # calculate the time at which the wave crosses the synthetic point source
     t0tx = -dxmin/cm
 
-    alneg = np.atan2(xele[0] - ovectx[:,0], -ovectx[:,1])
-    alpos = np.atan2(xele[-1] - ovectx[:,0], -ovectx[:,1])
+    alneg = np.arctan2(xele[0] - ovectx[:,0], -ovectx[:,1])
+    alpos = np.arctan2(xele[-1] - ovectx[:,0], -ovectx[:,1])
 
     alatx = (alpos - alneg)/2
     alsteers = (alpos + alneg)/2
