@@ -1,6 +1,7 @@
 import pytest
 import importlib
 
+#%% code to add gpu-flag markers to test functions so that only the CPU code gets tested automatically.
 def pytest_addoption(parser):
     parser.addoption(
         "--run-gpu",
@@ -35,3 +36,16 @@ def cupy_available():
     except Exception as e:
         pytest.skip(f"CuPy present but unusable: {e!r}")
     return cupy
+
+#%% Shared fixtures
+@pytest.fixture(scope='session')
+def interpolator_groundtruth_datapath():
+    """Loads raw traces and expected interpolated data into a dictionary"""
+    from pathlib import Path
+
+    datapath = Path(__file__).parent / "data" / "interpolator_groundtruth_data.h5"
+
+    if not datapath.exists():
+        pytest.skip("The dataset cannot be found")
+
+    return str(datapath)
